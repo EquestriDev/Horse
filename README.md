@@ -1,9 +1,22 @@
 # Horse
-*Claim horses, view their stats, and bring them to you on demand.*
+*Claim horses, view their stats, and bring them to you on demand. This plugin provides a simple command interface to provide all these services.*
+
+## Specifications
 
 - Spigot version **1.12.2**
 - Java version **1.8**
 - Build system **Maven**
+
+### Commands
+I took the liberty to add the *list* command to this assignement because of its utility. Furthermore, all commands support tab completion, including horse names, and the list and info commands have clickable elements. Enjoy.
+
+- **/horse claim [name]** - Claim the horse you're riding, holding on a leash, or looking at.
+- **/horse list** - List all your horses. They can be clicked for further information.
+- **/horse here <name>** - Teleport any horse to you.
+- **/horse info <name>** - View horse information.
+
+### Permissions
+- **horse.horse** - Use the /horse command.
 
 ## Challenges
 Despite the reduced set of features of this plugin and the resulting temptation to take the quickest and easiest route, there is at least one technical challenge in the way, which makes the implementation all the more intriguing. Said difficulty being the teleportation of entities which may or may not be anywhere in the world, including unloaded chunks.
