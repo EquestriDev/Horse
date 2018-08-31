@@ -1,28 +1,24 @@
 # Horse
+*Claim horses, view their stats, and bring them to you on demand.*
 
-The purpose of this plugin is a way for players to claim horses, warp claimed horses to them, and get additional information about them, via commands.  There is a certain temptation to take the easy route and implement the requested commands in the quickest and most obvious way.  However, thorough research on your server has revealed a few caveats which I'm hoping to address with my particular approach.
+## Challenges
+Despite the reduced set of features of this plugin and the resulting temptation to take the quickest and easiest route, there is at least one technical challenge in the way, which makes the implementation all that more intriguing. Said difficulty being the teleportation of entities which may or may not be anywhere in the world, including unloaded chunks.
 
-- Claimed horses tend to get **duplicated**, especially when there is a server crash.
-- Even without duplication issues, keeping track of entities globally poses myriad technical challenges.
-- Horses and other entities get unloaded from memory and stored to disk once they enter an empty chunk.
-- Finding out where in world the horse was left off is impossible.
-- Storing all horse locations and loading the chunk on demand causes server lag and is unreliable.
-- Keeping references to horse objects risks severe **memory leaks**.
-- Keeping chunks of all horses loaded will cause high memory usage and is doomed to fail once the server restarts or crashes.
+Said issue was actually discussed on the [SpigotMC forums](https://www.spigotmc.org/threads/getting-entity-problem.332246/) not too long ago, and I voiced my opinion right there that such entities should never be stored to disk to begin with. One risks either duplicating said entity by spawning it in while it also resides in a saved chunk.
 
-Therefore, this plugin takes a different approach which I consider best practice for the way horses are intended to be used on your server.  There was actually a [thread on the Spigot forums](https://www.spigotmc.org/threads/getting-entity-problem.332246/) not too long ago, where this exact topic was discussed.  How to manage entities which you intend to teleport around while they may be in an unloaded chunk.  I expressed the same opinion there.
+On the other hand, it is possible to load the chunk on demand to force the entity back into memory, and teleport it then, but this approach yields a whole battery of issues. Loading chunks manually is, of course, very slow, and will lag the server. How do you know where the entity was last seen? What to do if you load the chunk but it isn't there? A simple server crash or other error could easily trigger such an inconsistency. Therefore, it needs to be addressed from the start, in the design phase of the plugin.
 
-In the case of this plugin, I have come to this conclusion after a lot of research and with the future needs of your server in mind.  After all, your plans are quite elaborate and require a sophisticated system to keep track of horses without error.  I hope that after reviewing this plugin, you will agree with me.  Here is how it works.
-- No claimed horse is ever stored as an entity on disk.
-- The plugin will add the horse to the world and remove it again as needed.
-- This process happens seemlessly to players.
+A third alternative is to keep chunks loaded while there's a horse in them. This concept however cannot withstand critical examination. Forcing chunks to stay in memory causes excessive RAM usage. Furthermore, all chunks are lost when the server restarts anyway. Clearly, this is not a long-term solution.
 
-There are several **benefits** to this:
-- No stray horses are every found in the world under normal circumstances.
-- Should such an invalid horse be found, e.g. after a crash, the plugin will safely remove it.
-- No references to existing horses are ever kept. Thus, no memory leaks.
-- New attributes or abilities can be added to the stored horses at any time.
+## The existing plugin
+My research while playing on your server and talking with some of the moderators has yielded that a duplication glitch with horses is fairly commonplace. As described above, I assume that horses get duplicated by the plugin and it has no mechanism built into it which could detect and remedy such a situation. So whenever it happens, manual staff interference is mandatory, whereas my solution will prevent this from ever happening. Shielding players from glaring bugs like that is very important in my opinion, as doing so reduces their insecurity while attempting to spot how something is supposed to work.
 
-All of this may seem a little excessive for this little proof of concept snippet, but it is necessary to ensure proper teleportation of horses, make sure the plugin is future proof.
+## Solution
+Therefore, my plugin takes a somewhat more involved approach. I consider it best practice when tackling the aforementioned issue. Claiming horses is the main feature of EquestriaWorlds, and using an advanced system is absolutely appropriate, as this is a feature we want to run smoothly.
 
-Another design decision is keeping the identification of horses lenient.  This means that horses can be addressed by their name or index via commands.  The plugin will figure out which was intended.
+Horse entities are spawned in sporadically where they are either requested or last left off, and are never saved to disk. This plugin keeps track of all their statistics and properties, and does a bit of extra work to make sure horse entities appear seamlessly where players would expect them, and on the other hand, can effortlessly teleport them to the player, with little overhead.
+
+Horse entities are marked with scoreboard tags so we can easily tell if an entity represents a claimed horse. Furthermore, this approach also allows us to notice invalid entities which were the result of a previous crash or other error, which would usually result in horse duplication, and remove said entities without anyone noticing.
+
+## Conclusion
+So this plugin takes an approach which prevents errors such as horse duplication, is easy on the memory requirements, and puts players' minds at ease because everything "just works", from their perspectives.
