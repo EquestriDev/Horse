@@ -1,5 +1,6 @@
 # Horse
 *Claim horses, view their stats, and bring them to you on demand.*
+
 - Spigot version **1.12.2**
 - Java version **1.8**
 - Build system **Maven**
