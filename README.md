@@ -21,4 +21,7 @@ Horse entities are spawned in sporadically where they are either requested or la
 Horse entities are marked with scoreboard tags so we can easily tell if an entity represents a claimed horse. Furthermore, this approach also allows us to notice invalid entities which were the result of a previous crash or other error, which would usually result in horse duplication, and remove said entities without anyone noticing.
 
 ## Conclusion
-So this plugin takes an approach which prevents errors such as horse duplication, is easy on the memory requirements, and puts players' minds at ease because everything "just works", from their perspectives.
+So this plugin takes an approach which prevents errors such as horse duplication, is easy on the memory requirements, and puts players' minds at ease because everything "just works", from their perspectives. Upon reviewing the plugin and its source, I hope that you will agree with me.
+
+## Future directions
+I checked out the existing plugin in action and noticed that it makes extensive use of chest menus, which I'm a huge fan of. I was actually tempted to add chest menus to this plugin, but didn't want to let my ambitions get the better of me. Beyond that, this plugin is well ready to give horses additional properties and build it up to a gameplay enhancing feature plugin.
