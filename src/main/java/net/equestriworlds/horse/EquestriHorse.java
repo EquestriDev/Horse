@@ -30,7 +30,7 @@ public final class EquestriHorse {
     // Ownership
     private UUID owner;
     private String ownerName;
-    // Attributes
+    // Properties
     private Horse.Color color;
     private Horse.Style style;
     private double jumpStrength;
@@ -51,7 +51,7 @@ public final class EquestriHorse {
     private transient String chunkWorld;
     private transient long chunkCoord;
 
-    void storeAttributes(Horse horse) {
+    void storeProperties(Horse horse) {
         this.name = horse.getCustomName();
         this.color = horse.getColor();
         this.style = horse.getStyle();
@@ -64,7 +64,7 @@ public final class EquestriHorse {
         saddle = item == null || item.getType() == Material.AIR ? null : item.serialize();
     }
 
-    void applyAttributes(Horse horse) {
+    void applyProperties(Horse horse) {
         horse.setCustomName(this.name);
         horse.setColor(this.color);
         horse.setStyle(this.style);
