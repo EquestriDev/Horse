@@ -1,7 +1,7 @@
 name: Horse
 version: 1.0
 author: StarTux
-main: com.equestriworlds.horse.Horse
+main: net.equestriworlds.horse.HorsePlugin
 website: https://equestriworlds.net
 depend: []
 softdepend: []
@@ -11,8 +11,10 @@ commands:
     description: Horse management
     usage: |-
       /h claim - Claim your horse
+      /h list - List your horses
       /h here - Bring the horse
       /h info - Information about your horse
+      /h help - Usage
     permission: horse.horse
 permissions:
   horse.horse:

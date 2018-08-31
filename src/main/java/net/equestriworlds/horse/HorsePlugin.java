@@ -4,14 +4,21 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
-import org.bukkit.ChatColor;
+import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
+import net.md_5.bungee.api.chat.HoverEvent;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
@@ -53,12 +60,22 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
             return true;
         }
         Player player = (Player)sender;
-        if (args.length == 0) return false;
+        if (args.length == 0) {
+            List<EquestriHorse> list = findHorsesOf(player);
+            if (list.isEmpty()) {
+                return false;
+            } else {
+                player.sendMessage("");
+                showHorseList(player, list);
+                player.sendMessage("");
+                return true;
+            }
+        }
         Horse horse;
         EquestriHorse equestriHorse;
         String name = null;
         switch (args[0]) {
-        case "claim":
+        case "claim": case "c":
             horse = findInteractedHorseOf(player);
             if (horse == null) {
                 player.sendMessage(ChatColor.RED + "Ride, leash, or look at the horse you want to claim.");
@@ -83,6 +100,12 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 name = sb.toString();
                 equestriHorse.setName(name);
                 horse.setCustomName(name);
+            } else {
+                name = horse.getCustomName();
+            }
+            if (name == null) {
+                player.sendMessage(ChatColor.RED + "Give this horse a name.");
+                return true;
             }
             horses.add(equestriHorse);
             saveHorses();
@@ -100,22 +123,20 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.GREEN + "You claimed the horse named " + name + "!");
             }
             return true;
-        case "here":
-            if (args.length >= 2) {
+        case "here": case "bring":
+            if (args.length < 2) {
+                player.sendMessage(ChatColor.RED + "Please specify a name.");
+                return true;
+            }
+            if (true) {
                 StringBuilder sb = new StringBuilder(args[1]);
                 for (int i = 2; i < args.length; i += 1) sb.append(" ").append(args[i]);
                 name = sb.toString();
-                equestriHorse = findEquestriHorseWithArg(player, name);
-                if (equestriHorse == null) {
-                    player.sendMessage(ChatColor.RED + "Horse not found: " + name + ".");
-                    return true;
-                }
-            } else {
-                equestriHorse = findMainHorseOf(player);
-                if (equestriHorse == null) {
-                    player.sendMessage(ChatColor.RED + "You have no horse claimed.");
-                    return true;
-                }
+            }
+            equestriHorse = findEquestriHorseWithArg(player, name);
+            if (equestriHorse == null) {
+                player.sendMessage(ChatColor.RED + "Horse not found: " + name + ".");
+                return true;
             }
             horse = equestriHorse.findEntity();
             if (horse != null) {
@@ -147,20 +168,71 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                     return true;
                 }
             } else {
-                equestriHorse = findInteractedHorseOf(player);
-                if (equestriHorse == null) {
-                    player.sendMessage(ChatColor.RED + "You have no horse claimed.");
+                horse = findInteractedHorseOf(player);
+                if (horse != null) {
+                    equestriHorse = findEquestriHorseOf(horse);
+                    if (equestriHorse == null) {
+                        player.sendMessage(ChatColor.RED + "This horse has not been claimed.");
+                        return true;
+                    }
+                } else {
+                    player.sendMessage(ChatColor.RED + "Please specify a name.");
                     return true;
                 }
             }
-            player.sendMessage(ChatColor.GREEN + "=== Horse Information ===");
-            player.sendMessage(ChatColor.WHITE + "Name " + ChatColor.GRAY + equestriHorse.getName());
-            player.sendMessage(ChatColor.WHITE + "Jump " + ChatColor.GRAY + equestriHorse.getJumpStrength());
-            player.sendMessage(ChatColor.WHITE + "Speed " + ChatColor.GRAY + equestriHorse.getMovementSpeed());
-            player.sendMessage(ChatColor.WHITE + "Age " + ChatColor.GRAY + (equestriHorse.getAge() < 0 ? "Baby" : "Adult"));
+            int horseIndex = findHorsesOf(player).indexOf(equestriHorse);
+            player.sendMessage("");
+            player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Horse Information");
+            player.spigot().sendMessage(describeHorse(equestriHorse));
+            player.spigot().sendMessage(new ComponentBuilder("").append("Options ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + equestriHorse.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + equestriHorse.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + equestriHorse.getName() + " here."))).append(" ").append("[Rename]").color(ChatColor.BLUE).event(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/horse rename " + horseIndex + " " + equestriHorse.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.BLUE + "/horse rename " + horseIndex + " <Name>\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Rename " + equestriHorse.getName()))).create());
+            player.sendMessage("");
+            return true;
+        case "list": case "l":
+            if (args.length == 1) {
+                player.sendMessage("");
+                showHorseList(player, findHorsesOf(player));
+                player.sendMessage("");
+                return true;
+            }
+            break;
+        default:
             break;
         }
         return false;
+    }
+
+    void showHorseList(Player player, List<EquestriHorse> playerHorses) {
+        if (playerHorses.size() == 0) {
+            player.sendMessage(ChatColor.RED + "You have no horses claimed.");
+            return;
+        }
+        player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Horse List" + ChatColor.GRAY + " (" + playerHorses.size() + ") " + ChatColor.ITALIC + "Click for more info.");
+        int horseIndex = 0;
+        for (EquestriHorse playerHorse: playerHorses) {
+            horseIndex += 1;
+            player.spigot().sendMessage(new ComponentBuilder("- ").append(playerHorse.getName()).color(chatColorOf(playerHorse.getColor())).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse info " + horseIndex)).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, describeHorse(playerHorse))).create());
+        }
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!(sender instanceof Player)) return null;
+        Player player = (Player)sender;
+        String arg = args.length == 0 ? "" : args[args.length - 1];
+        if (args.length <= 1) {
+            return Arrays.asList("claim", "list", "here", "info", "rename").stream().filter(s -> s.startsWith(arg)).collect(Collectors.toList());
+        }
+        switch (args[0]) {
+        case "claim": return Collections.emptyList();
+        case "here":
+        case "info":
+            if (args.length == 2) {
+                return findHorsesOf(player).stream().map(EquestriHorse::getName).filter(s -> s.startsWith(arg)).collect(Collectors.toList());
+            } else {
+                return null;
+            }
+        }
+        return null;
     }
 
     // --- Horse Finder Functions
@@ -221,7 +293,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         List<EquestriHorse> playerHorses = findHorsesOf(player);
         try {
             int index = Integer.parseInt(arg);
-            if (index >= 0 && index < playerHorses.size()) return playerHorses.get(index);
+            if (index >= 1 && index <= playerHorses.size()) return playerHorses.get(index - 1);
         } catch (NumberFormatException nfe) { }
         for (EquestriHorse playerHorse: playerHorses) {
             if (playerHorse.getName() != null && playerHorse.getName().equalsIgnoreCase(arg)) {
@@ -231,11 +303,28 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         return null;
     }
 
-    EquestriHorse findMainHorseOf(Player player) {
-        for (EquestriHorse horse: horses) {
-            if (horse.isOwner(player)) return horse;
+    BaseComponent[] describeHorse(EquestriHorse horse) {
+        ChatColor c = chatColorOf(horse.getColor());
+        return new BaseComponent[] {
+            new TextComponent("" + c + ChatColor.BOLD + horse.getName()),
+            new TextComponent("\nOwner " + ChatColor.GRAY + horse.getOwnerName()),
+            new TextComponent("\nJump " + ChatColor.GRAY + String.format("%.2f", horse.getJumpStrength())),
+            new TextComponent("\nSpeed " + ChatColor.GRAY + String.format("%.2f", horse.getMovementSpeed())),
+            new TextComponent("\nStyle " + ChatColor.GRAY + niceEnumName(horse.getStyle().name())),
+            new TextComponent("\nColor " + c + niceEnumName(horse.getColor().name())),
+            new TextComponent("\nAge " + ChatColor.GRAY + (horse.getAge() < 0 ? "Baby" : "Adult"))
+        };
+    }
+
+    String niceEnumName(String in) {
+        String[] toks = in.split("_");
+        StringBuilder sb = new StringBuilder(toks[0].substring(0, 1).toUpperCase()).append(toks[0].substring(1).toLowerCase());
+        for (int i = 1; i < toks.length; i += 1) {
+            sb .append(" ")
+                .append(toks[i].substring(0, 1).toUpperCase())
+                .append(toks[i].substring(1).toLowerCase());
         }
-        return null;
+        return sb.toString();
     }
 
     // --- Loading and Saving
@@ -256,11 +345,33 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
 
     void saveHorses() {
         Gson gson = new Gson();
+        String json = gson.toJson(horses);
+        File file = new File(getDataFolder(), "horses.json");
+        getServer().getScheduler().runTaskAsynchronously(this, () -> saveFile(json, file));
+    }
+
+    private synchronized void saveFile(String str, File file) {
         try {
-            gson.toJson(horses, new FileWriter(new File(getDataFolder(), "horses.json")));
+            PrintWriter pw = new PrintWriter(file);
+            pw.write(str);
+            pw.flush();
+            pw.close();
         } catch (IOException ioe) {
-            System.err.println("Saving horses failed:");
+            System.err.println("Saving file failed: " + file.getName());
             ioe.printStackTrace();
+        }
+    }
+
+    static ChatColor chatColorOf(Horse.Color c) {
+        switch (c) {
+        case BLACK: return ChatColor.BLACK;
+        case BROWN: return ChatColor.DARK_RED;
+        case CHESTNUT: return ChatColor.RED;
+        case CREAMY: return ChatColor.GOLD;
+        case DARK_BROWN: return ChatColor.DARK_GRAY;
+        case GRAY: return ChatColor.GRAY;
+        case WHITE: return ChatColor.WHITE;
+        default: return ChatColor.WHITE;
         }
     }
 
