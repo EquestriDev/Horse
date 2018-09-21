@@ -1,17 +1,17 @@
 package net.equestriworlds.horse;
 
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -39,17 +39,17 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.inventory.InventoryHolder;
-import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 import org.spigotmc.event.entity.EntityDismountEvent;
 
 public final class HorsePlugin extends JavaPlugin implements Listener {
-    private List<EquestriHorse> horses;
-    private boolean horsesDirty; // Were horses modified since the last save?
+    private List<ClaimedHorse> horses;
     public static final String SCORE_MARKER = "equestriworlds.horse";
     public static final String SCORE_ID = "equestriworlds.id=";
+    // Storage
+    private Connection databaseConnection;
 
     /**
      * Load all the horses and attempt to spawn them in where
@@ -57,20 +57,19 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
      */
     @Override
     public void onEnable() {
-        saveResource("horses.json", false);
-        loadHorses();
-        for (EquestriHorse horse: horses) {
-            Location location = horse.getLocation();
-            if (location != null && location.getWorld().isChunkLoaded(horse.getCx(), horse.getCz())) {
-                Horse entity = location.getWorld().spawn(location, Horse.class, h -> horse.applyProperties(h));
+        createTables();
+        horses = loadHorses();
+        for (ClaimedHorse claimedHorse: horses) {
+            Location location = claimedHorse.getLocation();
+            if (location != null && location.getWorld().isChunkLoaded(claimedHorse.getCx(), claimedHorse.getCz())) {
+                Horse entity = location.getWorld().spawn(location, Horse.class, h -> claimedHorse.applyProperties(h));
                 entity.addScoreboardTag(SCORE_MARKER);
-                entity.addScoreboardTag(SCORE_ID + horse.getUniqueId());
-                horse.storeEntity(entity);
-                horsesDirty = true;
+                entity.addScoreboardTag(SCORE_ID + claimedHorse.getId());
+                claimedHorse.storeEntity(entity);
+                updateHorse(claimedHorse);
             }
         }
         getServer().getPluginManager().registerEvents(this, this);
-        getServer().getScheduler().runTaskTimer(this, () -> saveHorsesIncremental(), 10L, 10L);
     }
 
     /**
@@ -79,13 +78,12 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
      */
     @Override
     public void onDisable() {
-        if (horsesDirty) saveHorsesSync();
-        for (EquestriHorse horse: horses) {
+        for (ClaimedHorse horse: horses) {
             Horse entity = horse.findEntity();
             if (entity != null) entity.remove();
         }
         horses.clear();
-        EquestriHorse.clearChunkCache();
+        ClaimedHorse.clearChunkCache();
     }
 
     /**
@@ -99,7 +97,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         }
         Player player = (Player)sender;
         if (args.length == 0) {
-            List<EquestriHorse> list = findHorsesOf(player);
+            List<ClaimedHorse> list = findHorsesOf(player);
             if (list.isEmpty()) {
                 return false;
             } else {
@@ -110,7 +108,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
             }
         }
         Horse horse;
-        EquestriHorse equestriHorse;
+        ClaimedHorse claimedHorse;
         String name = null;
         switch (args[0]) {
         case "claim": case "c":
@@ -123,20 +121,18 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.RED + "This horse has already been claimed.");
                 return true;
             }
-            // Create the EquestriHorse list entry.
-            equestriHorse = new EquestriHorse();
-            UUID equestriId = new UUID((long)(horses.size() + 1), ThreadLocalRandom.current().nextLong());
-            equestriHorse.setUniqueId(equestriId);
-            equestriHorse.storeProperties(horse);
-            equestriHorse.storeLocation(horse.getLocation());
-            equestriHorse.storeEntity(horse);
-            equestriHorse.storeOwner(player);
+            // Create the ClaimedHorse list entry.
+            claimedHorse = new ClaimedHorse();
+            claimedHorse.storeProperties(horse);
+            claimedHorse.storeLocation(horse.getLocation());
+            claimedHorse.storeEntity(horse);
+            claimedHorse.storeOwner(player);
             // Build the name, if there is one.
             if (args.length >= 2) {
                 StringBuilder sb = new StringBuilder(args[1]);
                 for (int i = 2; i < args.length; i += 1) sb.append(" ").append(args[i]);
                 name = sb.toString();
-                equestriHorse.setName(name);
+                claimedHorse.setName(name);
                 horse.setCustomName(name);
             } else {
                 name = horse.getCustomName();
@@ -145,12 +141,15 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.RED + "Give this horse a name.");
                 return true;
             }
-            horses.add(equestriHorse);
-            saveHorses();
+            if (!saveHorse(claimedHorse)) {
+                player.sendMessage(ChatColor.RED + "Horse claiming failed. Please contact an administrator.");
+                return true;
+            }
+            horses.add(claimedHorse);
             // Mark the horse entity with marker, as well as the
-            // unique id of the EquestriHorse.
+            // unique id of the ClaimedHorse.
             horse.addScoreboardTag(SCORE_MARKER);
-            horse.addScoreboardTag(SCORE_ID + equestriId);
+            horse.addScoreboardTag(SCORE_ID + claimedHorse.getId());
             // Set the horse's owner.
             horse.setTamed(true);
             horse.setOwner(player);
@@ -172,24 +171,24 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 for (int i = 2; i < args.length; i += 1) sb.append(" ").append(args[i]);
                 name = sb.toString();
             }
-            equestriHorse = findEquestriHorseWithArg(player, name);
-            if (equestriHorse == null) {
+            claimedHorse = findClaimedHorseWithArg(player, name);
+            if (claimedHorse == null) {
                 player.sendMessage(ChatColor.RED + "Horse not found: " + name + ".");
                 return true;
             }
-            horse = equestriHorse.findEntity();
+            horse = claimedHorse.findEntity();
             if (horse != null) {
                 horse.teleport(player);
             } else {
                 Location loc = player.getLocation();
-                horse = loc.getWorld().spawn(loc, Horse.class, h -> equestriHorse.applyProperties(h));
+                horse = loc.getWorld().spawn(loc, Horse.class, h -> claimedHorse.applyProperties(h));
                 horse.addScoreboardTag(SCORE_MARKER);
-                horse.addScoreboardTag(SCORE_ID + equestriHorse.getUniqueId());
-                equestriHorse.storeEntity(horse);
+                horse.addScoreboardTag(SCORE_ID + claimedHorse.getId());
+                claimedHorse.storeEntity(horse);
             }
-            equestriHorse.storeLocation(horse.getLocation());
-            horsesDirty = true;
-            name = equestriHorse.getName();
+            claimedHorse.storeLocation(horse.getLocation());
+            updateHorse(claimedHorse);
+            name = claimedHorse.getName();
             if (name == null) {
                 player.sendMessage(ChatColor.GREEN + "Horse teleported to you.");
             } else {
@@ -202,16 +201,16 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 StringBuilder sb = new StringBuilder(args[1]);
                 for (int i = 2; i < args.length; i += 1) sb.append(" ").append(args[i]);
                 name = sb.toString();
-                equestriHorse = findEquestriHorseWithArg(player, name);
-                if (equestriHorse == null) {
+                claimedHorse = findClaimedHorseWithArg(player, name);
+                if (claimedHorse == null) {
                     player.sendMessage(ChatColor.RED + "Horse not found: " + name);
                     return true;
                 }
             } else {
                 horse = findInteractedHorseOf(player);
                 if (horse != null) {
-                    equestriHorse = findEquestriHorseOf(horse);
-                    if (equestriHorse == null) {
+                    claimedHorse = findClaimedHorseOf(horse);
+                    if (claimedHorse == null) {
                         player.sendMessage(ChatColor.RED + "This horse has not been claimed.");
                         return true;
                     }
@@ -220,11 +219,11 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                     return true;
                 }
             }
-            int horseIndex = findHorsesOf(player).indexOf(equestriHorse);
+            int horseIndex = findHorsesOf(player).indexOf(claimedHorse);
             player.sendMessage("");
             player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Horse Information");
-            player.spigot().sendMessage(describeHorse(equestriHorse));
-            player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + equestriHorse.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + equestriHorse.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + equestriHorse.getName() + " here."))).create());
+            player.spigot().sendMessage(describeHorse(claimedHorse));
+            player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + claimedHorse.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + claimedHorse.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + claimedHorse.getName() + " here."))).create());
             player.sendMessage("");
             return true;
         case "list": case "l":
@@ -245,7 +244,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
      * Show a list of horses to some player; they are assumed to
      * belong to the player.
      */
-    void showHorseList(Player player, List<EquestriHorse> playerHorses) {
+    void showHorseList(Player player, List<ClaimedHorse> playerHorses) {
         if (playerHorses.size() == 0) {
             player.sendMessage(ChatColor.RED + "You have no horses claimed.");
             return;
@@ -268,7 +267,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         }
         player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Your have " + nu + ". " + ChatColor.GRAY + ChatColor.ITALIC + "Click for more info.");
         int horseIndex = 0;
-        for (EquestriHorse playerHorse: playerHorses) {
+        for (ClaimedHorse playerHorse: playerHorses) {
             horseIndex += 1;
             player.spigot().sendMessage(new ComponentBuilder("\u2022 ").append(playerHorse.getName()).color(chatColorOf(playerHorse.getColor())).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse info " + horseIndex)).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, describeHorse(playerHorse))).create());
         }
@@ -292,10 +291,12 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         case "info":
         case "bring":
             if (args.length == 2) {
-                return findHorsesOf(player).stream().map(EquestriHorse::getName).filter(s -> s.toLowerCase().startsWith(arg.toLowerCase())).collect(Collectors.toList());
+                return findHorsesOf(player).stream().map(ClaimedHorse::getName).filter(s -> s.toLowerCase().startsWith(arg.toLowerCase())).collect(Collectors.toList());
             } else {
                 return null;
             }
+        default:
+            break;
         }
         return null;
     }
@@ -344,59 +345,59 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     }
 
     /**
-     * Find the EquestriHorse which describes the given horse
+     * Find the ClaimedHorse which describes the given horse
      * entity. The information will have been stored in the entity's
      * scoreboard tags. No tags means that this entity does not belong
-     * to an EquestriHorse. Existing tags with an invalid unique ID
+     * to an ClaimedHorse. Existing tags with an invalid unique ID
      * means that this horse is a leftover invalid entity, but we
      * don't remove it at this point. Instead, we do so when the chunk
      * unloads or the entity is interacted with or damaged, which
      * should be enough to avoid confusing incidents.
      *
-     * @return The EquestriHorse record or null if none was found.
+     * @return The ClaimedHorse record or null if none was found.
      */
-    EquestriHorse findEquestriHorseOf(Horse horse) {
+    ClaimedHorse findClaimedHorseOf(Horse horse) {
         if (!horse.getScoreboardTags().contains(SCORE_MARKER)) return null;
-        UUID uuid = null;
+        int horseId = -1;
         for (String tag: horse.getScoreboardTags()) {
             if (tag.startsWith(SCORE_ID)) {
                 String id = tag.substring(SCORE_ID.length());
                 try {
-                    uuid = UUID.fromString(id);
-                    break;
-                } catch (IllegalArgumentException iae) {
-                    iae.printStackTrace();
+                    horseId = Integer.parseInt(id);
+                } catch (NumberFormatException nfe) {
+                    nfe.printStackTrace();
                     return null;
                 }
+                break;
             }
         }
-        if (uuid == null) return null;
-        for (EquestriHorse equestriHorse: horses) {
-            if (uuid.equals(equestriHorse.getUniqueId())) return equestriHorse;
+        if (horseId < 0) return null;
+        for (ClaimedHorse claimedHorse: horses) {
+            if (claimedHorse.getId() == horseId) return claimedHorse;
         }
         return null;
     }
 
     /**
-     * Find all EquestriHorse records belonging to the player.
+     * Find all ClaimedHorse records belonging to the player.
      */
-    List<EquestriHorse> findHorsesOf(Player player) {
+    List<ClaimedHorse> findHorsesOf(Player player) {
         return horses.stream().filter(h -> h.isOwner(player)).collect(Collectors.toList());
     }
 
     /**
-     * Find all EquestriHorse records which the player may be
+     * Find all ClaimedHorse records which the player may be
      * referring to with the given argument. The latters is assumed to
      * be either an index for all horses belonging to them, or the
      * name of the horse.
      */
-    EquestriHorse findEquestriHorseWithArg(Player player, String arg) {
-        List<EquestriHorse> playerHorses = findHorsesOf(player);
+    ClaimedHorse findClaimedHorseWithArg(Player player, String arg) {
+        List<ClaimedHorse> playerHorses = findHorsesOf(player);
         try {
             int index = Integer.parseInt(arg);
             if (index >= 1 && index <= playerHorses.size()) return playerHorses.get(index - 1);
         } catch (NumberFormatException nfe) { }
-        for (EquestriHorse playerHorse: playerHorses) {
+        for (ClaimedHorse playerHorse: playerHorses) {
             if (playerHorse.getName() != null && playerHorse.getName().equalsIgnoreCase(arg)) {
                 return playerHorse;
             }
@@ -443,7 +444,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
      * Return all the properties of a horse which we will show to
      * players. Used for tooltips and the info command.
      */
-    BaseComponent[] describeHorse(EquestriHorse horse) {
+    BaseComponent[] describeHorse(ClaimedHorse horse) {
         ChatColor c = chatColorOf(horse.getColor());
         return new BaseComponent[] {
             new TextComponent("" + c + ChatColor.BOLD + horse.getName()),
@@ -458,77 +459,77 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
 
     // --- Loading and Saving
 
-    /**
-     * Load all horses from the JSON file, deleting whatever was in
-     * memory before.
-     */
-    void loadHorses() {
-        Gson gson = new Gson();
-        EquestriHorse.clearChunkCache();
-        try {
-            horses = gson.fromJson(new FileReader(new File(getDataFolder(), "horses.json")), new TypeToken<List<EquestriHorse>>(){}.getType());
-        } catch (IOException ioe) {
-            System.err.println("Loading horses failed:");
-            ioe.printStackTrace();
-            horses = new ArrayList<>();
-            return;
+    Connection getDatabase() throws SQLException {
+        if (databaseConnection == null || !databaseConnection.isValid(1)) {
+            try {
+                Class.forName("org.sqlite.JDBC");
+            } catch (ClassNotFoundException cnfe) {
+                cnfe.printStackTrace();
+            }
+            File dbfile = new File(getDataFolder(), "horses.db");
+            databaseConnection = DriverManager.getConnection("jdbc:sqlite:" + dbfile);
         }
-        for (EquestriHorse horse: horses) horse.updateChunkCache();
+        return databaseConnection;
     }
 
-    /**
-     * Save all horses only if the data were marked as dirty after the
-     * previous save.
-     */
-    private void saveHorsesIncremental() {
-        if (!horsesDirty) return;
-        saveHorses();
-    }
-
-    /**
-     * Save all horses. The blocking write to file will happen in an
-     * async thread.
-     */
-    void saveHorses() {
-        horsesDirty = false;
-        Gson gson = new Gson();
-        String json = gson.toJson(horses);
-        File file = new File(getDataFolder(), "horses.json");
-        getServer().getScheduler().runTaskAsynchronously(this, () -> saveFile(json, file));
-    }
-
-    /**
-     * Same as above but in the main thread. Only used when the plugin
-     * is disabled and thread scheduling is illegal.
-     */
-    void saveHorsesSync() {
-        horsesDirty = false;
-        Gson gson = new Gson();
-        String json = gson.toJson(horses);
-        File file = new File(getDataFolder(), "horses.json");
-        saveFile(json, file);
-    }
-
-    /**
-     * Helper method to write a String to a file. Used by the
-     * saveHorses() methods.
-     */
-    private synchronized void saveFile(String str, File file) {
+    void createTables() {
         try {
-            PrintWriter pw = new PrintWriter(file);
-            pw.write(str);
-            pw.flush();
-            pw.close();
-        } catch (IOException ioe) {
-            System.err.println("Saving file failed: " + file.getName());
-            ioe.printStackTrace();
+            String sql = "CREATE TABLE IF NOT EXISTS `horses` ("
+                + "`id` INTEGER PRIMARY KEY AUTOINCREMENT,"
+                + "`data` TEXT"
+                + ")";
+            getDatabase().createStatement().execute(sql);
+        } catch (SQLException sqle) {
+            sqle.printStackTrace();
         }
+    }
+
+    boolean saveHorse(ClaimedHorse claimedHorse) {
+        Gson gson = new Gson();
+        String sql = "INSERT INTO `horses` (data) values ('" + gson.toJson(claimedHorse) + "')";
+        try (PreparedStatement statement = getDatabase().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            int ret = statement.executeUpdate();
+            if (ret != 1) throw new SQLException("Failed to save horse");
+            ResultSet result = statement.getGeneratedKeys();
+            if (!result.next()) throw new SQLException("Failed to save horse");
+            claimedHorse.setId(result.getInt(1));
+        } catch (SQLException sqle) {
+            sqle.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    boolean updateHorse(ClaimedHorse claimedHorse) {
+        Gson gson = new Gson();
+        int ret = 0;
+        try {
+            ret = getDatabase().createStatement().executeUpdate("UPDATE `horses` SET `data` = '" + gson.toJson(claimedHorse) + "' WHERE `id` = " + claimedHorse.getId());
+        } catch (SQLException sqle) {
+            sqle.printStackTrace();
+        }
+        return ret == 1;
+    }
+
+    List<ClaimedHorse> loadHorses() {
+        Gson gson = new Gson();
+        List<ClaimedHorse> list = new ArrayList<>();
+        try {
+            ResultSet result = getDatabase().createStatement().executeQuery("SELECT * FROM `horses`");
+            while (result.next()) {
+                ClaimedHorse claimedHorse = gson.fromJson(result.getString("data"), ClaimedHorse.class);
+                list.add(claimedHorse);
+            }
+        } catch (SQLException sqle) {
+            sqle.printStackTrace();
+        }
+        return list;
     }
 
     // --- Event Handlers
 
     /**
-     * Remove any horse entities marked as EquestriHorse from the
+     * Remove any horse entities marked as ClaimedHorse from the
      * chunk as they are considered illegal and most likely the result
      * of a previous crash or other error. Consider printing a message
      * to console for debug purposes.
@@ -539,20 +540,20 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
     public void onChunkLoad(ChunkLoadEvent event) {
         final Chunk chunk = event.getChunk();
-        // Remove stray EquestriHorses.
+        // Remove stray ClaimedHorses.
         for (Entity entity: chunk.getEntities()) {
             if (entity instanceof Horse && entity.getScoreboardTags().contains(SCORE_MARKER)) {
                 entity.remove();
             }
         }
-        // Spawn in EquestriHorses where they left.
-        for (EquestriHorse horse: EquestriHorse.horsesInChunk(chunk)) {
-            if (horse.findEntity() == null) {
-                Horse entity = chunk.getWorld().spawn(horse.getLocation(), Horse.class, h -> horse.applyProperties(h));
+        // Spawn in ClaimedHorses where they left.
+        for (ClaimedHorse claimedHorse: ClaimedHorse.horsesInChunk(chunk)) {
+            if (claimedHorse.findEntity() == null) {
+                Horse entity = chunk.getWorld().spawn(claimedHorse.getLocation(), Horse.class, h -> claimedHorse.applyProperties(h));
                 entity.addScoreboardTag(SCORE_MARKER);
-                entity.addScoreboardTag(SCORE_ID + horse.getUniqueId());
-                horse.storeEntity(entity);
-                horsesDirty = true;
+                entity.addScoreboardTag(SCORE_ID + claimedHorse.getId());
+                claimedHorse.storeEntity(entity);
+                updateHorse(claimedHorse);
             }
         }
     }
@@ -568,12 +569,12 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         for (Entity entity: chunk.getEntities()) {
             if (entity instanceof Horse && entity.getScoreboardTags().contains(SCORE_MARKER)) {
                 Horse horse = (Horse)entity;
-                EquestriHorse equestriHorse = findEquestriHorseOf(horse);
-                if (equestriHorse != null) {
-                    equestriHorse.storeProperties(horse);
-                    equestriHorse.storeEntity(horse);
-                    equestriHorse.storeLocation(horse.getLocation());
-                    horsesDirty = true;
+                ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
+                if (claimedHorse != null) {
+                    claimedHorse.storeProperties(horse);
+                    claimedHorse.storeEntity(horse);
+                    claimedHorse.storeLocation(horse.getLocation());
+                    updateHorse(claimedHorse);
                 }
             }
         }
@@ -582,18 +583,18 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     /**
      * When a horse's inventory is closed, there is a chance that it
      * was modified. Use this opportunity to record the inventory into
-     * the EquestriHorse record.
+     * the ClaimedHorse record.
      */
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onInventoryClose(InventoryCloseEvent event) {
         InventoryHolder holder = event.getView().getTopInventory().getHolder();
         if (!(holder instanceof Horse)) return;
         Horse horse = (Horse)holder;
-        EquestriHorse equestriHorse = findEquestriHorseOf(horse);
-        if (equestriHorse == null) return;
-        equestriHorse.storeProperties(horse);
-        equestriHorse.storeLocation(horse.getLocation());
-        horsesDirty = true;
+        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
+        if (claimedHorse == null) return;
+        claimedHorse.storeProperties(horse);
+        claimedHorse.storeLocation(horse.getLocation());
+        updateHorse(claimedHorse);
     }
 
     /**
@@ -604,10 +605,10 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     public void onEntityDismount(EntityDismountEvent event) {
         if (!(event.getDismounted() instanceof Horse)) return;
         Horse horse = (Horse)event.getDismounted();
-        EquestriHorse equestriHorse = findEquestriHorseOf(horse);
-        if (equestriHorse == null) return;
-        equestriHorse.storeLocation(horse.getLocation());
-        horsesDirty = true;
+        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
+        if (claimedHorse == null) return;
+        claimedHorse.storeLocation(horse.getLocation());
+        updateHorse(claimedHorse);
     }
 
     /**
@@ -620,8 +621,8 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         if (!(event.getEntity() instanceof Horse)) return;
         Horse horse = (Horse)event.getEntity();
         if (!horse.getScoreboardTags().contains(SCORE_MARKER)) return;
-        EquestriHorse equestriHorse = findEquestriHorseOf(horse);
-        if (equestriHorse == null || !horse.getUniqueId().equals(equestriHorse.getEntityId())) horse.remove();
+        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
+        if (claimedHorse == null || !horse.getUniqueId().equals(claimedHorse.getEntityId())) horse.remove();
     }
 
     /**
@@ -632,8 +633,8 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         if (!(event.getRightClicked() instanceof Horse)) return;
         Horse horse = (Horse)event.getRightClicked();
         if (!horse.getScoreboardTags().contains(SCORE_MARKER)) return;
-        EquestriHorse equestriHorse = findEquestriHorseOf(horse);
-        if (equestriHorse == null || !horse.getUniqueId().equals(equestriHorse.getEntityId())) horse.remove();
+        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
+        if (claimedHorse == null || !horse.getUniqueId().equals(claimedHorse.getEntityId())) horse.remove();
     }
 
     /**
@@ -649,11 +650,11 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         if (player.getVehicle() == null || !(player.getVehicle() instanceof Horse)) return;
         Horse horse = (Horse)player.getVehicle();
-        EquestriHorse equestriHorse = findEquestriHorseOf(horse);
-        if (equestriHorse == null) return;
-        equestriHorse.storeLocation(horse.getLocation());
-        horsesDirty = true;
+        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
+        if (claimedHorse == null) return;
+        claimedHorse.storeLocation(horse.getLocation());
         horse.eject();
+        updateHorse(claimedHorse);
     }
 
     // --- Effects

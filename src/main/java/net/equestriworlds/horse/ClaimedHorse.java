@@ -9,7 +9,6 @@ import lombok.Data;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
@@ -24,8 +23,8 @@ import org.bukkit.inventory.ItemStack;
  * from the world, and respawned later on.
  */
 @Data
-public final class EquestriHorse {
-    private UUID uniqueId;
+public final class ClaimedHorse {
+    private int id;
     private String name;
     // Ownership
     private UUID owner;
@@ -47,7 +46,7 @@ public final class EquestriHorse {
     private float pitch, yaw;
     private int cx, cz;
     // ChunkCache
-    private static final Map<String, Map<Long, List<EquestriHorse>>> CHUNKS = new HashMap<>();
+    private static final Map<String, Map<Long, List<ClaimedHorse>>> CHUNKS = new HashMap<>();
     private transient String chunkWorld;
     private transient long chunkCoord;
 
@@ -139,21 +138,21 @@ public final class EquestriHorse {
 
     void updateChunkCache() {
         if (chunkWorld != null) {
-            Map<Long, List<EquestriHorse>> worldCache = CHUNKS.get(chunkWorld);
+            Map<Long, List<ClaimedHorse>> worldCache = CHUNKS.get(chunkWorld);
             if (worldCache != null) {
-                List<EquestriHorse> horseCache = worldCache.get(chunkCoord);
+                List<ClaimedHorse> horseCache = worldCache.get(chunkCoord);
                 if (horseCache != null) horseCache.remove(this);
             }
         }
         chunkWorld = world;
         chunkCoord = ((long)cz << 32) | (long)cx;
         if (chunkWorld != null) {
-            Map<Long, List<EquestriHorse>> worldCache = CHUNKS.get(chunkWorld);
+            Map<Long, List<ClaimedHorse>> worldCache = CHUNKS.get(chunkWorld);
             if (worldCache == null) {
                 worldCache = new HashMap<>();
                 CHUNKS.put(chunkWorld, worldCache);
             }
-            List<EquestriHorse> horseCache = worldCache.get(chunkCoord);
+            List<ClaimedHorse> horseCache = worldCache.get(chunkCoord);
             if (horseCache == null) {
                 horseCache = new ArrayList<>();
                 worldCache.put(chunkCoord, horseCache);
@@ -162,12 +161,12 @@ public final class EquestriHorse {
         }
     }
 
-    static List<EquestriHorse> horsesInChunk(Chunk chunk) {
-        List<EquestriHorse> result = new ArrayList<>();
-        Map<Long, List<EquestriHorse>> worldCache = CHUNKS.get(chunk.getWorld().getName());
+    static List<ClaimedHorse> horsesInChunk(Chunk chunk) {
+        List<ClaimedHorse> result = new ArrayList<>();
+        Map<Long, List<ClaimedHorse>> worldCache = CHUNKS.get(chunk.getWorld().getName());
         if (worldCache == null) return result;
         long c = ((long)chunk.getZ() << 32) | (long)chunk.getX();
-        List<EquestriHorse> horseCache = worldCache.get(c);
+        List<ClaimedHorse> horseCache = worldCache.get(c);
         if (horseCache != null) result.addAll(horseCache);
         return result;
     }

@@ -13,21 +13,21 @@ import org.junit.Test;
 public final class HorseTest {
     @Test
     public void testHorseList() {
-        EquestriHorse horse = new EquestriHorse();
+        ClaimedHorse horse = new ClaimedHorse();
         horse.setName("Epona");
         horse.setColor(Horse.Color.BROWN);
         horse.setStyle(Horse.Style.WHITEFIELD);
         horse.setOwner(UUID.randomUUID());
-        EquestriHorse horse2 = new EquestriHorse();
+        ClaimedHorse horse2 = new ClaimedHorse();
         horse2.setName("Spirit");
         horse2.setColor(Horse.Color.WHITE);
         horse2.setStyle(Horse.Style.WHITE);
         horse2.setOwner(UUID.randomUUID());
-        List<EquestriHorse> list = Arrays.asList(horse, horse2);
+        List<ClaimedHorse> list = Arrays.asList(horse, horse2);
         Gson gson = new Gson();
         String json = gson.toJson(list);
-        Type type = new TypeToken<List<EquestriHorse>>(){}.getType();
-        List<EquestriHorse> list2 = gson.fromJson(json, type);
+        Type type = new TypeToken<List<ClaimedHorse>>() { }.getType();
+        List<ClaimedHorse> list2 = gson.fromJson(json, type);
         String json2 = gson.toJson(list2);
         System.out.println("---");
         System.out.println(list);
