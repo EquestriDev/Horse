@@ -1,17 +1,11 @@
 package net.equestriworlds.horse;
 
-import com.google.gson.Gson;
-import java.io.File;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -24,6 +18,7 @@ import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
@@ -45,11 +40,15 @@ import org.bukkit.util.Vector;
 import org.spigotmc.event.entity.EntityDismountEvent;
 
 public final class HorsePlugin extends JavaPlugin implements Listener {
-    private List<ClaimedHorse> horses;
-    public static final String SCORE_MARKER = "equestriworlds.horse";
-    public static final String SCORE_ID = "equestriworlds.id=";
-    // Storage
-    private Connection databaseConnection;
+    // --- Constants
+    public static final String SCOREBOARD_MARKER = "equestriworlds.horse";
+    public static final String SCOREBOARD_ID = "equestriworlds.id";
+    // --- Horse Data
+    private final Map<String, Map<Long, List<HorseData>>> chunkCache = new HashMap<>();
+    private HorseDatabase database;
+    private List<HorseData> horses;
+
+    // --- JavaPlugin
 
     /**
      * Load all the horses and attempt to spawn them in where
@@ -57,18 +56,9 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
      */
     @Override
     public void onEnable() {
-        createTables();
-        horses = loadHorses();
-        for (ClaimedHorse claimedHorse: horses) {
-            Location location = claimedHorse.getLocation();
-            if (location != null && location.getWorld().isChunkLoaded(claimedHorse.getCx(), claimedHorse.getCz())) {
-                Horse entity = location.getWorld().spawn(location, Horse.class, h -> claimedHorse.applyProperties(h));
-                entity.addScoreboardTag(SCORE_MARKER);
-                entity.addScoreboardTag(SCORE_ID + claimedHorse.getId());
-                claimedHorse.storeEntity(entity);
-                updateHorse(claimedHorse);
-            }
-        }
+        this.database = new HorseDatabase(this);
+        this.database.createTables();
+        loadHorses();
         getServer().getPluginManager().registerEvents(this, this);
     }
 
@@ -78,12 +68,12 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
      */
     @Override
     public void onDisable() {
-        for (ClaimedHorse horse: horses) {
-            Horse entity = horse.findEntity();
+        for (HorseData data: horses) {
+            Horse entity = data.findEntity();
             if (entity != null) entity.remove();
         }
         horses.clear();
-        ClaimedHorse.clearChunkCache();
+        chunkCache.clear();
     }
 
     /**
@@ -97,7 +87,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         }
         Player player = (Player)sender;
         if (args.length == 0) {
-            List<ClaimedHorse> list = findHorsesOf(player);
+            List<HorseData> list = findHorsesOf(player);
             if (list.isEmpty()) {
                 return false;
             } else {
@@ -108,7 +98,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
             }
         }
         Horse horse;
-        ClaimedHorse claimedHorse;
+        HorseData horseData;
         String name = null;
         switch (args[0]) {
         case "claim": case "c":
@@ -117,22 +107,22 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.RED + "Ride, leash, or look at the horse you want to claim.");
                 return true;
             }
-            if (horse.getScoreboardTags().contains(SCORE_MARKER)) {
+            if (horse.getScoreboardTags().contains(SCOREBOARD_MARKER)) {
                 player.sendMessage(ChatColor.RED + "This horse has already been claimed.");
                 return true;
             }
-            // Create the ClaimedHorse list entry.
-            claimedHorse = new ClaimedHorse();
-            claimedHorse.storeProperties(horse);
-            claimedHorse.storeLocation(horse.getLocation());
-            claimedHorse.storeEntity(horse);
-            claimedHorse.storeOwner(player);
+            // Create the HorseData list entry.
+            horseData = new HorseData();
+            horseData.storeProperties(horse);
+            horseData.storeLocation(horse.getLocation());
+            horseData.storeEntity(horse);
+            horseData.storeOwner(player);
             // Build the name, if there is one.
             if (args.length >= 2) {
                 StringBuilder sb = new StringBuilder(args[1]);
                 for (int i = 2; i < args.length; i += 1) sb.append(" ").append(args[i]);
                 name = sb.toString();
-                claimedHorse.setName(name);
+                horseData.setName(name);
                 horse.setCustomName(name);
             } else {
                 name = horse.getCustomName();
@@ -141,15 +131,15 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.RED + "Give this horse a name.");
                 return true;
             }
-            if (!saveHorse(claimedHorse)) {
+            if (!this.database.saveHorse(horseData)) {
                 player.sendMessage(ChatColor.RED + "Horse claiming failed. Please contact an administrator.");
                 return true;
             }
-            horses.add(claimedHorse);
+            horses.add(horseData);
             // Mark the horse entity with marker, as well as the
-            // unique id of the ClaimedHorse.
-            horse.addScoreboardTag(SCORE_MARKER);
-            horse.addScoreboardTag(SCORE_ID + claimedHorse.getId());
+            // unique id of the HorseData.
+            horse.addScoreboardTag(SCOREBOARD_MARKER);
+            horse.addScoreboardTag(SCOREBOARD_ID + "=" + horseData.getId());
             // Set the horse's owner.
             horse.setTamed(true);
             horse.setOwner(player);
@@ -171,24 +161,24 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 for (int i = 2; i < args.length; i += 1) sb.append(" ").append(args[i]);
                 name = sb.toString();
             }
-            claimedHorse = findClaimedHorseWithArg(player, name);
-            if (claimedHorse == null) {
+            horseData = findHorseDataWithArg(player, name);
+            if (horseData == null) {
                 player.sendMessage(ChatColor.RED + "Horse not found: " + name + ".");
                 return true;
             }
-            horse = claimedHorse.findEntity();
+            horse = horseData.findEntity();
             if (horse != null) {
                 horse.teleport(player);
             } else {
                 Location loc = player.getLocation();
-                horse = loc.getWorld().spawn(loc, Horse.class, h -> claimedHorse.applyProperties(h));
-                horse.addScoreboardTag(SCORE_MARKER);
-                horse.addScoreboardTag(SCORE_ID + claimedHorse.getId());
-                claimedHorse.storeEntity(horse);
+                horse = loc.getWorld().spawn(loc, Horse.class, h -> horseData.applyProperties(h));
+                horse.addScoreboardTag(SCOREBOARD_MARKER);
+                horse.addScoreboardTag(SCOREBOARD_ID + horseData.getId());
+                horseData.storeEntity(horse);
             }
-            claimedHorse.storeLocation(horse.getLocation());
-            updateHorse(claimedHorse);
-            name = claimedHorse.getName();
+            horseData.storeLocation(horse.getLocation());
+            this.database.updateHorse(horseData);
+            name = horseData.getName();
             if (name == null) {
                 player.sendMessage(ChatColor.GREEN + "Horse teleported to you.");
             } else {
@@ -201,16 +191,16 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 StringBuilder sb = new StringBuilder(args[1]);
                 for (int i = 2; i < args.length; i += 1) sb.append(" ").append(args[i]);
                 name = sb.toString();
-                claimedHorse = findClaimedHorseWithArg(player, name);
-                if (claimedHorse == null) {
+                horseData = findHorseDataWithArg(player, name);
+                if (horseData == null) {
                     player.sendMessage(ChatColor.RED + "Horse not found: " + name);
                     return true;
                 }
             } else {
                 horse = findInteractedHorseOf(player);
                 if (horse != null) {
-                    claimedHorse = findClaimedHorseOf(horse);
-                    if (claimedHorse == null) {
+                    horseData = findHorseDataOf(horse);
+                    if (horseData == null) {
                         player.sendMessage(ChatColor.RED + "This horse has not been claimed.");
                         return true;
                     }
@@ -219,11 +209,11 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                     return true;
                 }
             }
-            int horseIndex = findHorsesOf(player).indexOf(claimedHorse);
+            int horseIndex = findHorsesOf(player).indexOf(horseData);
             player.sendMessage("");
             player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Horse Information");
-            player.spigot().sendMessage(describeHorse(claimedHorse));
-            player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + claimedHorse.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + claimedHorse.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + claimedHorse.getName() + " here."))).create());
+            player.spigot().sendMessage(describeHorse(horseData));
+            player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + horseData.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + horseData.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + horseData.getName() + " here."))).create());
             player.sendMessage("");
             return true;
         case "list": case "l":
@@ -240,11 +230,43 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         return false;
     }
 
+    // --- Horse
+
+    void loadHorses() {
+        this.horses = this.database.loadHorses();
+        spawnAllHorses();
+    }
+
+    List<Horse> spawnAllHorses() {
+        List<Horse> result = new ArrayList<>();
+        for (HorseData data: this.horses) {
+            HorseData.HorseLocation dataLoc = data.getLocation();
+            if (dataLoc != null) {
+                World world = dataLoc.bukkitWorld();
+                if (world != null && world.isChunkLoaded(dataLoc.cx, dataLoc.cz)) {
+                    Horse horse = spawnHorse(data, dataLoc.bukkitLocation());
+                    if (horse != null) result.add(horse);
+                }
+            }
+        }
+        return result;
+    }
+
+    Horse spawnHorse(HorseData data, Location location) {
+        Horse result = location.getWorld().spawn(location, Horse.class, h -> data.applyProperties(h));
+        result.addScoreboardTag(SCOREBOARD_MARKER);
+        result.addScoreboardTag(SCOREBOARD_ID + data.getId());
+        data.storeEntity(result);
+        data.storeLocation(location);
+        this.database.updateHorse(data);
+        return result;
+    }
+
     /**
      * Show a list of horses to some player; they are assumed to
      * belong to the player.
      */
-    void showHorseList(Player player, List<ClaimedHorse> playerHorses) {
+    void showHorseList(Player player, List<HorseData> playerHorses) {
         if (playerHorses.size() == 0) {
             player.sendMessage(ChatColor.RED + "You have no horses claimed.");
             return;
@@ -267,7 +289,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         }
         player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Your have " + nu + ". " + ChatColor.GRAY + ChatColor.ITALIC + "Click for more info.");
         int horseIndex = 0;
-        for (ClaimedHorse playerHorse: playerHorses) {
+        for (HorseData playerHorse: playerHorses) {
             horseIndex += 1;
             player.spigot().sendMessage(new ComponentBuilder("\u2022 ").append(playerHorse.getName()).color(chatColorOf(playerHorse.getColor())).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse info " + horseIndex)).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, describeHorse(playerHorse))).create());
         }
@@ -291,7 +313,7 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         case "info":
         case "bring":
             if (args.length == 2) {
-                return findHorsesOf(player).stream().map(ClaimedHorse::getName).filter(s -> s.toLowerCase().startsWith(arg.toLowerCase())).collect(Collectors.toList());
+                return findHorsesOf(player).stream().map(HorseData::getName).filter(s -> s.toLowerCase().startsWith(arg.toLowerCase())).collect(Collectors.toList());
             } else {
                 return null;
             }
@@ -345,23 +367,23 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     }
 
     /**
-     * Find the ClaimedHorse which describes the given horse
+     * Find the HorseData which describes the given horse
      * entity. The information will have been stored in the entity's
      * scoreboard tags. No tags means that this entity does not belong
-     * to an ClaimedHorse. Existing tags with an invalid unique ID
+     * to an HorseData. Existing tags with an invalid unique ID
      * means that this horse is a leftover invalid entity, but we
      * don't remove it at this point. Instead, we do so when the chunk
      * unloads or the entity is interacted with or damaged, which
      * should be enough to avoid confusing incidents.
      *
-     * @return The ClaimedHorse record or null if none was found.
+     * @return The HorseData record or null if none was found.
      */
-    ClaimedHorse findClaimedHorseOf(Horse horse) {
-        if (!horse.getScoreboardTags().contains(SCORE_MARKER)) return null;
+    HorseData findHorseDataOf(Horse horse) {
+        if (!horse.getScoreboardTags().contains(SCOREBOARD_MARKER)) return null;
         int horseId = -1;
         for (String tag: horse.getScoreboardTags()) {
-            if (tag.startsWith(SCORE_ID)) {
-                String id = tag.substring(SCORE_ID.length());
+            if (tag.startsWith(SCOREBOARD_ID)) {
+                String id = tag.substring(SCOREBOARD_ID.length());
                 try {
                     horseId = Integer.parseInt(id);
                 } catch (NumberFormatException nfe) {
@@ -372,32 +394,32 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
             }
         }
         if (horseId < 0) return null;
-        for (ClaimedHorse claimedHorse: horses) {
-            if (claimedHorse.getId() == horseId) return claimedHorse;
+        for (HorseData horseData: horses) {
+            if (horseData.getId() == horseId) return horseData;
         }
         return null;
     }
 
     /**
-     * Find all ClaimedHorse records belonging to the player.
+     * Find all HorseData records belonging to the player.
      */
-    List<ClaimedHorse> findHorsesOf(Player player) {
+    List<HorseData> findHorsesOf(Player player) {
         return horses.stream().filter(h -> h.isOwner(player)).collect(Collectors.toList());
     }
 
     /**
-     * Find all ClaimedHorse records which the player may be
+     * Find all HorseData records which the player may be
      * referring to with the given argument. The latters is assumed to
      * be either an index for all horses belonging to them, or the
      * name of the horse.
      */
-    ClaimedHorse findClaimedHorseWithArg(Player player, String arg) {
-        List<ClaimedHorse> playerHorses = findHorsesOf(player);
+    HorseData findHorseDataWithArg(Player player, String arg) {
+        List<HorseData> playerHorses = findHorsesOf(player);
         try {
             int index = Integer.parseInt(arg);
             if (index >= 1 && index <= playerHorses.size()) return playerHorses.get(index - 1);
         } catch (NumberFormatException nfe) { }
-        for (ClaimedHorse playerHorse: playerHorses) {
+        for (HorseData playerHorse: playerHorses) {
             if (playerHorse.getName() != null && playerHorse.getName().equalsIgnoreCase(arg)) {
                 return playerHorse;
             }
@@ -427,13 +449,13 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
      * Get the approximate ChatColor which represents this horse
      * color.
      */
-    static ChatColor chatColorOf(Horse.Color c) {
+    static ChatColor chatColorOf(HorseColor c) {
         switch (c) {
         case BLACK: return ChatColor.BLACK;
-        case BROWN: return ChatColor.DARK_RED;
+        case BAY: return ChatColor.DARK_RED;
         case CHESTNUT: return ChatColor.RED;
         case CREAMY: return ChatColor.GOLD;
-        case DARK_BROWN: return ChatColor.DARK_GRAY;
+        case DARK_BAY: return ChatColor.DARK_GRAY;
         case GRAY: return ChatColor.GRAY;
         case WHITE: return ChatColor.WHITE;
         default: return ChatColor.WHITE;
@@ -444,92 +466,23 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
      * Return all the properties of a horse which we will show to
      * players. Used for tooltips and the info command.
      */
-    BaseComponent[] describeHorse(ClaimedHorse horse) {
+    BaseComponent[] describeHorse(HorseData horse) {
         ChatColor c = chatColorOf(horse.getColor());
         return new BaseComponent[] {
             new TextComponent("" + c + ChatColor.BOLD + horse.getName()),
             new TextComponent("\nOwner " + ChatColor.GRAY + horse.getOwnerName()),
             new TextComponent("\nJump " + ChatColor.GRAY + String.format("%.2f", horse.getJumpStrength())),
             new TextComponent("\nSpeed " + ChatColor.GRAY + String.format("%.2f", horse.getMovementSpeed())),
-            new TextComponent("\nStyle " + ChatColor.GRAY + niceEnumName(horse.getStyle().name())),
-            new TextComponent("\nColor " + c + niceEnumName(horse.getColor().name())),
+            new TextComponent("\nColor " + c + horse.getColor().humanName),
+            new TextComponent("\nMarkings " + ChatColor.GRAY + horse.getMarkings().humanName),
             new TextComponent("\nAge " + ChatColor.GRAY + (horse.getAge() < 0 ? "Baby" : "Adult"))
         };
-    }
-
-    // --- Loading and Saving
-
-    Connection getDatabase() throws SQLException {
-        if (databaseConnection == null || !databaseConnection.isValid(1)) {
-            try {
-                Class.forName("org.sqlite.JDBC");
-            } catch (ClassNotFoundException cnfe) {
-                cnfe.printStackTrace();
-            }
-            File dbfile = new File(getDataFolder(), "horses.db");
-            databaseConnection = DriverManager.getConnection("jdbc:sqlite:" + dbfile);
-        }
-        return databaseConnection;
-    }
-
-    void createTables() {
-        try {
-            String sql = "CREATE TABLE IF NOT EXISTS `horses` ("
-                + "`id` INTEGER PRIMARY KEY AUTOINCREMENT,"
-                + "`data` TEXT"
-                + ")";
-            getDatabase().createStatement().execute(sql);
-        } catch (SQLException sqle) {
-            sqle.printStackTrace();
-        }
-    }
-
-    boolean saveHorse(ClaimedHorse claimedHorse) {
-        Gson gson = new Gson();
-        String sql = "INSERT INTO `horses` (data) values ('" + gson.toJson(claimedHorse) + "')";
-        try (PreparedStatement statement = getDatabase().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            int ret = statement.executeUpdate();
-            if (ret != 1) throw new SQLException("Failed to save horse");
-            ResultSet result = statement.getGeneratedKeys();
-            if (!result.next()) throw new SQLException("Failed to save horse");
-            claimedHorse.setId(result.getInt(1));
-        } catch (SQLException sqle) {
-            sqle.printStackTrace();
-            return false;
-        }
-        return true;
-    }
-
-    boolean updateHorse(ClaimedHorse claimedHorse) {
-        Gson gson = new Gson();
-        int ret = 0;
-        try {
-            ret = getDatabase().createStatement().executeUpdate("UPDATE `horses` SET `data` = '" + gson.toJson(claimedHorse) + "' WHERE `id` = " + claimedHorse.getId());
-        } catch (SQLException sqle) {
-            sqle.printStackTrace();
-        }
-        return ret == 1;
-    }
-
-    List<ClaimedHorse> loadHorses() {
-        Gson gson = new Gson();
-        List<ClaimedHorse> list = new ArrayList<>();
-        try {
-            ResultSet result = getDatabase().createStatement().executeQuery("SELECT * FROM `horses`");
-            while (result.next()) {
-                ClaimedHorse claimedHorse = gson.fromJson(result.getString("data"), ClaimedHorse.class);
-                list.add(claimedHorse);
-            }
-        } catch (SQLException sqle) {
-            sqle.printStackTrace();
-        }
-        return list;
     }
 
     // --- Event Handlers
 
     /**
-     * Remove any horse entities marked as ClaimedHorse from the
+     * Remove any horse entities marked as HorseData from the
      * chunk as they are considered illegal and most likely the result
      * of a previous crash or other error. Consider printing a message
      * to console for debug purposes.
@@ -540,20 +493,16 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
     public void onChunkLoad(ChunkLoadEvent event) {
         final Chunk chunk = event.getChunk();
-        // Remove stray ClaimedHorses.
+        // Remove stray HorseData.
         for (Entity entity: chunk.getEntities()) {
-            if (entity instanceof Horse && entity.getScoreboardTags().contains(SCORE_MARKER)) {
+            if (entity instanceof Horse && entity.getScoreboardTags().contains(SCOREBOARD_MARKER)) {
                 entity.remove();
             }
         }
-        // Spawn in ClaimedHorses where they left.
-        for (ClaimedHorse claimedHorse: ClaimedHorse.horsesInChunk(chunk)) {
-            if (claimedHorse.findEntity() == null) {
-                Horse entity = chunk.getWorld().spawn(claimedHorse.getLocation(), Horse.class, h -> claimedHorse.applyProperties(h));
-                entity.addScoreboardTag(SCORE_MARKER);
-                entity.addScoreboardTag(SCORE_ID + claimedHorse.getId());
-                claimedHorse.storeEntity(entity);
-                updateHorse(claimedHorse);
+        // Spawn in HorseData where they left.
+        for (HorseData horseData: horsesInChunk(chunk)) {
+            if (horseData.findEntity() == null && horseData.getLocation() != null) {
+                spawnHorse(horseData, horseData.getLocation().bukkitLocation());
             }
         }
     }
@@ -567,14 +516,14 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     public void onChunkUnload(ChunkUnloadEvent event) {
         final Chunk chunk = event.getChunk();
         for (Entity entity: chunk.getEntities()) {
-            if (entity instanceof Horse && entity.getScoreboardTags().contains(SCORE_MARKER)) {
+            if (entity instanceof Horse && entity.getScoreboardTags().contains(SCOREBOARD_MARKER)) {
                 Horse horse = (Horse)entity;
-                ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
-                if (claimedHorse != null) {
-                    claimedHorse.storeProperties(horse);
-                    claimedHorse.storeEntity(horse);
-                    claimedHorse.storeLocation(horse.getLocation());
-                    updateHorse(claimedHorse);
+                HorseData horseData = findHorseDataOf(horse);
+                if (horseData != null) {
+                    horseData.storeProperties(horse);
+                    horseData.storeEntity(horse);
+                    horseData.storeLocation(horse.getLocation());
+                    this.database.updateHorse(horseData);
                 }
             }
         }
@@ -583,18 +532,18 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     /**
      * When a horse's inventory is closed, there is a chance that it
      * was modified. Use this opportunity to record the inventory into
-     * the ClaimedHorse record.
+     * the HorseData record.
      */
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onInventoryClose(InventoryCloseEvent event) {
         InventoryHolder holder = event.getView().getTopInventory().getHolder();
         if (!(holder instanceof Horse)) return;
         Horse horse = (Horse)holder;
-        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
-        if (claimedHorse == null) return;
-        claimedHorse.storeProperties(horse);
-        claimedHorse.storeLocation(horse.getLocation());
-        updateHorse(claimedHorse);
+        HorseData horseData = findHorseDataOf(horse);
+        if (horseData == null) return;
+        horseData.storeProperties(horse);
+        horseData.storeLocation(horse.getLocation());
+        this.database.updateHorse(horseData);
     }
 
     /**
@@ -605,10 +554,10 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     public void onEntityDismount(EntityDismountEvent event) {
         if (!(event.getDismounted() instanceof Horse)) return;
         Horse horse = (Horse)event.getDismounted();
-        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
-        if (claimedHorse == null) return;
-        claimedHorse.storeLocation(horse.getLocation());
-        updateHorse(claimedHorse);
+        HorseData horseData = findHorseDataOf(horse);
+        if (horseData == null) return;
+        horseData.storeLocation(horse.getLocation());
+        this.database.updateHorse(horseData);
     }
 
     /**
@@ -620,9 +569,9 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     public void onEntityDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Horse)) return;
         Horse horse = (Horse)event.getEntity();
-        if (!horse.getScoreboardTags().contains(SCORE_MARKER)) return;
-        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
-        if (claimedHorse == null || !horse.getUniqueId().equals(claimedHorse.getEntityId())) horse.remove();
+        if (!horse.getScoreboardTags().contains(SCOREBOARD_MARKER)) return;
+        HorseData horseData = findHorseDataOf(horse);
+        if (horseData == null || !horse.getUniqueId().equals(horseData.getEntityId())) horse.remove();
     }
 
     /**
@@ -632,9 +581,9 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
     public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof Horse)) return;
         Horse horse = (Horse)event.getRightClicked();
-        if (!horse.getScoreboardTags().contains(SCORE_MARKER)) return;
-        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
-        if (claimedHorse == null || !horse.getUniqueId().equals(claimedHorse.getEntityId())) horse.remove();
+        if (!horse.getScoreboardTags().contains(SCOREBOARD_MARKER)) return;
+        HorseData horseData = findHorseDataOf(horse);
+        if (horseData == null || !horse.getUniqueId().equals(horseData.getEntityId())) horse.remove();
     }
 
     /**
@@ -650,11 +599,11 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         if (player.getVehicle() == null || !(player.getVehicle() instanceof Horse)) return;
         Horse horse = (Horse)player.getVehicle();
-        ClaimedHorse claimedHorse = findClaimedHorseOf(horse);
-        if (claimedHorse == null) return;
-        claimedHorse.storeLocation(horse.getLocation());
+        HorseData horseData = findHorseDataOf(horse);
+        if (horseData == null) return;
+        horseData.storeLocation(horse.getLocation());
         horse.eject();
-        updateHorse(claimedHorse);
+        this.database.updateHorse(horseData);
     }
 
     // --- Effects
@@ -701,5 +650,43 @@ public final class HorsePlugin extends JavaPlugin implements Listener {
                 ticks += 1;
             }
         }.runTaskTimer(this, 1, 1);
+    }
+
+    // --- Chunk cache
+
+    // TODO: Rewrite
+    // void updateChunkCache() {
+    //     if (chunkWorld != null) {
+    //         Map<Long, List<HorseData>> worldCache = chunkCache.get(chunkWorld);
+    //         if (worldCache != null) {
+    //             List<HorseData> horseCache = worldCache.get(chunkCoord);
+    //             if (horseCache != null) horseCache.remove(this);
+    //         }
+    //     }
+    //     chunkWorld = world;
+    //     chunkCoord = ((long)cz << 32) | (long)cx;
+    //     if (chunkWorld != null) {
+    //         Map<Long, List<HorseData>> worldCache = chunkCache.get(chunkWorld);
+    //         if (worldCache == null) {
+    //             worldCache = new HashMap<>();
+    //             chunkCache.put(chunkWorld, worldCache);
+    //         }
+    //         List<HorseData> horseCache = worldCache.get(chunkCoord);
+    //         if (horseCache == null) {
+    //             horseCache = new ArrayList<>();
+    //             worldCache.put(chunkCoord, horseCache);
+    //         }
+    //         horseCache.add(this);
+    //     }
+    // }
+
+    List<HorseData> horsesInChunk(Chunk chunk) {
+        List<HorseData> result = new ArrayList<>();
+        Map<Long, List<HorseData>> worldCache = chunkCache.get(chunk.getWorld().getName());
+        if (worldCache == null) return result;
+        long c = ((long)chunk.getZ() << 32) | (long)chunk.getX();
+        List<HorseData> horseCache = worldCache.get(c);
+        if (horseCache != null) result.addAll(horseCache);
+        return result;
     }
 }
