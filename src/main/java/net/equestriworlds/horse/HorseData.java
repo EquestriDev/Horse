@@ -1,27 +1,28 @@
 package net.equestriworlds.horse;
 
-import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.UUID;
 import lombok.Data;
 import lombok.Value;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.AnimalTamer;
 import org.bukkit.entity.Horse;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 
 @Data
+// TODO
+// Inventory (part of NBT)
 final class HorseData {
-    private int id;
+    private int id = -1;
     // Identity
     private String name;
     private UUID owner;
     private String ownerName;
+    private HorseGender gender;
     // EquestriWorlds Properties
     private HorseBreed breed;
     private int age;
@@ -30,15 +31,16 @@ final class HorseData {
     private HorseMarkings markings;
     private double jumpStrength;
     private double movementSpeed;
-    private HorseItem saddle = HorseItem.AIR;
-    private HorseItem armor = HorseItem.AIR;
+    // Access
+    private HashSet<UUID> trusted = new HashSet<>();
     // Entity
-    private UUID entityId;
-    // Location (optional)
-    HorseLocation location;
+    HorseLocation location; // optional
+    Breeding breeding; // optional
+    Grooming grooming; // optonal
+    Health health;
 
     @Value
-    final static class HorseLocation {
+    static final class HorseLocation {
         public final String world;
         public final double x, y, z;
         public final float pitch, yaw;
@@ -65,35 +67,53 @@ final class HorseData {
         }
     }
 
-    @Value
-    final static class HorseItem {
-        public static final HorseItem AIR = new HorseItem(new ItemStack(Material.AIR));
-        public final Material material;
-        HorseItem(ItemStack bukkitItem) {
-            this.material = bukkitItem == null ? Material.AIR : bukkitItem.getType();
-        }
-        ItemStack bukkitItem() {
-            if (this.material == Material.AIR) return null;
-            return new ItemStack(this.material);
-        }
+    enum BreedingStage {
+        PREGNANT,
+        MARE_RECOVERY,
+        STALLION_RECOVERY,
+        FOAL,
+        RIDABLE,
+        ABORT_RECOVERY,
+        BREEDABLE;
     }
 
-    void storeProperties(Horse horse) {
+    @Data
+    static final class Breeding {
+        BreedingStage stage;
+        int pregnancyTime;
+        int partnerId;
+    }
+
+    @Data
+    static final class Grooming {
+        int appearance;
+    }
+
+    @Data
+    static final class Health {
+        // EnumSet<HorseSymptom> symptoms; // TODO
+        // Disease disease; // TODO
+        boolean immortal;
+        boolean vaccinated;
+        double temperature, pulse, eyes, hydration, body, due;
+    }
+
+    void loadProperties(AbstractHorse horse) {
         this.name = horse.getCustomName();
-        this.color = HorseColor.of(horse.getColor());
-        this.markings = HorseMarkings.of(horse.getStyle());
+        if (horse instanceof Horse) {
+            this.color = HorseColor.of(((Horse)horse).getColor());
+            this.markings = HorseMarkings.of(((Horse)horse).getStyle());
+        }
         this.jumpStrength = horse.getJumpStrength();
         this.movementSpeed = horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).getValue();
-        this.age = horse.getAge();
-        ItemStack item = horse.getInventory().getArmor();
-        this.saddle = new HorseItem(horse.getInventory().getSaddle());
-        this.armor = new HorseItem(horse.getInventory().getArmor());
     }
 
-    void applyProperties(Horse horse) {
+    void applyProperties(AbstractHorse horse) {
         horse.setCustomName(this.name);
-        horse.setColor(this.color.bukkitColor);
-        horse.setStyle(this.markings.bukkitStyle);
+        if (horse instanceof Horse) {
+            ((Horse)horse).setColor(this.color.bukkitColor);
+            ((Horse)horse).setStyle(this.markings.bukkitStyle);
+        }
         horse.setJumpStrength(this.jumpStrength);
         horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.movementSpeed);
         horse.setAge(this.age);
@@ -103,33 +123,10 @@ final class HorseData {
             horse.setTamed(true);
             if (player != null) horse.setOwner(player);
         }
-        if (armor != null) {
-            try {
-                horse.getInventory().setArmor(armor.bukkitItem());
-            } catch (RuntimeException e) {
-                e.printStackTrace();
-            }
-        } else {
-            horse.getInventory().setArmor(null);
-        }
-        if (saddle != null) {
-            try {
-                horse.getInventory().setSaddle(saddle.bukkitItem());
-            } catch (RuntimeException e) {
-                e.printStackTrace();
-            }
-        } else {
-            horse.getInventory().setSaddle(null);
-        }
     }
 
-    void storeEntity(Horse horse) {
-        this.entityId = horse.getUniqueId();
-    }
-
-    Horse findEntity() {
-        if (entityId == null) return null;
-        return (Horse)Bukkit.getEntity(entityId);
+    void clearLocation() {
+        this.location = null;
     }
 
     void storeLocation(Location bukkitLocation) {

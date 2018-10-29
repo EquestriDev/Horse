@@ -6,12 +6,10 @@ import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import org.bukkit.entity.Horse;
 import org.junit.Assert;
 import org.junit.Test;
 
 public final class HorseTest {
-    @Test
     public void testHorseList() {
         HorseData horse = new HorseData();
         horse.setName("Epona");
@@ -46,26 +44,31 @@ public final class HorseTest {
         out.print("<tr><th>Breed</th><th>Colors</th><th>Markings</th></tr>");
         for (HorseBreed breed: HorseBreed.values()) {
             out.print("<tr>");
-            out.print("<td>");
+            out.print("<td style='padding:8px;'>");
             out.print(breed.humanName);
             out.print("</td>");
-            out.print("<td>");
-            if (breed.colors.size() == HorseColor.values().length) {
-                out.print("<span style='background-color:aqua;'>All</span>");
-            } else {
-                for (HorseColor color: breed.colors) {
+            out.print("<td style='padding:8px;'>");
+            for (HorseColor color: HorseColor.values()) {
+                if (!breed.colors.contains(color)) {
+                    out.print("<span style='color:#aaaaaa;text-decoration:line-through;'>");
                     out.print(color.humanName);
-                    out.print("<br/>");
+                    out.print("</span>");
+                } else {
+                    out.print(color.humanName);
                 }
+                out.print("<br/>");
             }
-            out.print("</td><td>");
-            if (breed.markings.size() == HorseMarkings.values().length) {
-                out.print("<span style='background-color:lime;'>All</span>");
-            } else {
-                for (HorseMarkings markings: breed.markings) {
+            out.print("</td>");
+            out.print("<td style='padding:8px;'>");
+            for (HorseMarkings markings: HorseMarkings.values()) {
+                if (!breed.markings.contains(markings)) {
+                    out.print("<span style='color:#aaaaaa;text-decoration:line-through;'>");
                     out.print(markings.humanName);
-                    out.print("<br/>");
+                    out.print("</span>");
+                } else {
+                    out.print(markings.humanName);
                 }
+                out.print("<br/>");
             }
             out.print("</td>");
             out.print("</tr>");

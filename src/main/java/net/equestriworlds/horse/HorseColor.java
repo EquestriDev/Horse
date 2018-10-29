@@ -4,13 +4,13 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.entity.Horse;
 
 enum HorseColor {
-    WHITE   ("White",           Horse.Color.WHITE),
-    CREAMY  ("Buckskin",        Horse.Color.CREAMY),
-    CHESTNUT("Flaxen Chestnut", Horse.Color.CHESTNUT),
-    BAY     ("Bay",             Horse.Color.BROWN),
-    BLACK   ("Black",           Horse.Color.BLACK),
-    GRAY    ("Dapple Gray",     Horse.Color.GRAY),
-    DARK_BAY("Dark Bay",        Horse.Color.DARK_BROWN),
+    WHITE   ("White",    Horse.Color.WHITE),
+    CREAMY  ("Buckskin", Horse.Color.CREAMY),
+    CHESTNUT("Chestnut", Horse.Color.CHESTNUT),
+    BAY     ("Bay",      Horse.Color.BROWN),
+    BLACK   ("Black",    Horse.Color.BLACK),
+    GRAY    ("Gray",     Horse.Color.GRAY),
+    DARK_BAY("Dark Bay", Horse.Color.DARK_BROWN),
     ;
 
     public final String humanName;

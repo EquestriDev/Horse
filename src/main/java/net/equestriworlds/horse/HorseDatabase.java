@@ -44,15 +44,17 @@ final class HorseDatabase {
         }
     }
 
-    boolean saveHorse(HorseData horseData) {
+    boolean saveHorse(HorseData data) {
+        if (data == null) throw new NullPointerException("data cannot be null");
+        if (data.getId() >= 0) throw new IllegalArgumentException("saved data appears to exist in database: " + data);
         Gson gson = new Gson();
-        String sql = "INSERT INTO `horses` (data) values ('" + gson.toJson(horseData) + "')";
+        String sql = "INSERT INTO `horses` (data) values ('" + gson.toJson(data) + "')";
         try (PreparedStatement statement = getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             int ret = statement.executeUpdate();
             if (ret != 1) throw new SQLException("Failed to save horse");
             ResultSet result = statement.getGeneratedKeys();
             if (!result.next()) throw new SQLException("Failed to save horse");
-            horseData.setId(result.getInt(1));
+            data.setId(result.getInt(1));
         } catch (SQLException sqle) {
             sqle.printStackTrace();
             return false;
@@ -60,11 +62,13 @@ final class HorseDatabase {
         return true;
     }
 
-    boolean updateHorse(HorseData horseData) {
+    boolean updateHorse(HorseData data) {
+        if (data == null) throw new NullPointerException("data cannot be null");
+        if (data.getId() < 0) throw new IllegalArgumentException("updated data does not appear to exist in database: " + data);
         Gson gson = new Gson();
         int ret = 0;
         try {
-            ret = getConnection().createStatement().executeUpdate("UPDATE `horses` SET `data` = '" + gson.toJson(horseData) + "' WHERE `id` = " + horseData.getId());
+            ret = getConnection().createStatement().executeUpdate("UPDATE `horses` SET `data` = '" + gson.toJson(data) + "' WHERE `id` = " + data.getId());
         } catch (SQLException sqle) {
             sqle.printStackTrace();
         }
@@ -77,8 +81,8 @@ final class HorseDatabase {
         try {
             ResultSet row = getConnection().createStatement().executeQuery("SELECT * FROM `horses`");
             while (row.next()) {
-                HorseData horseData = gson.fromJson(row.getString("data"), HorseData.class);
-                result.add(horseData);
+                HorseData data = gson.fromJson(row.getString("data"), HorseData.class);
+                result.add(data);
             }
         } catch (SQLException sqle) {
             sqle.printStackTrace();

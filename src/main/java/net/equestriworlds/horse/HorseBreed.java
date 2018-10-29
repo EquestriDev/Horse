@@ -2,10 +2,10 @@ package net.equestriworlds.horse;
 
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import static net.equestriworlds.horse.HorseColor.*;
 import static net.equestriworlds.horse.HorseMarkings.*;
+import org.bukkit.entity.EntityType;
 
 /**
  * An enum of all available horse breeds with their possible colors
@@ -13,58 +13,61 @@ import static net.equestriworlds.horse.HorseMarkings.*;
  * not map nicely to a Java enum.
  */
 public enum HorseBreed {
-    AKHAL_TEKE("Akhal-Teke", set(ALL_COLORS), set(WHITE_DOTS, BLACK_DOTS)),
+    AKHAL_TEKE("Akhal-Teke", set(ALL_COLORS), set(SOLID, WHITE_DOTS, BLACK_DOTS)),
     AMERICAN_CREAM_DRAFT(set(CREAMY), set(WHITE_DOTS, SOLID)),
     AMERICAN_PAINT_HORSE(set(ALL_COLORS), set(WHITEFIELD)),
-    AMERICAN_QUARTER_HORSE,
-    AMERICAN_SADDLEBRED,
-    ANDALUSIAN,
+    AMERICAN_QUARTER_HORSE(set(ALL_COLORS), set(ALL_MARKINGS)),
+    AMERICAN_SADDLEBRED(set(ALL_COLORS), set(ALL_MARKINGS)),
+    ANDALUSIAN(set(ALL_COLORS), set(ALL_MARKINGS)),
     APPALOOSA(set(ALL_COLORS), set(WHITE_DOTS)),
-    ARABIAN,
+    ARABIAN(set(ALL_COLORS), set(ALL_MARKINGS)),
     ARDENNES(set(DARK_BAY, BLACK, CHESTNUT), but(WHITEFIELD)),
-    BELGIAN(set(CREAMY, CHESTNUT), set(SOCKS, WHITE_DOTS, SOLID)), // "Markings", black and white, or just white?
+    BELGIAN(set(CREAMY, CHESTNUT), set(SOCKS, SOLID)),
     BRETON(set(ALL_COLORS), but(WHITEFIELD)),
     CLYDESDALE(set(ALL_COLORS), but(WHITEFIELD)),
-    CHINCOTEAGUE_PONY,
-    CONNEMARA,
-    CURLY,
-    DARTMOOR,
-    FJORD(set(WHITE, CREAMY, BAY, BLACK), set(SOLID)), // What is "Fjord type"?
+    CHINCOTEAGUE_PONY(set(ALL_COLORS), set(ALL_MARKINGS)),
+    CONNEMARA(set(ALL_COLORS), set(ALL_MARKINGS)),
+    CURLY(set(ALL_COLORS), set(ALL_MARKINGS)),
+    DARTMOOR(set(ALL_COLORS), set(ALL_MARKINGS)),
+    DONKEY(EntityType.DONKEY),
+    FJORD(EntityType.MULE),
     FRENCH_TROTTER(set(ALL_COLORS), set(SOLID, SOCKS)),
-    FRIESIAN(set(BLACK), set(SOLID)), // "No markings": Does this mean solid?
-    GYPSY_VANNER,
-    HACKNEY,
+    FRIESIAN(set(BLACK), set(SOLID)),
+    GYPSY_VANNER(set(ALL_COLORS), set(ALL_MARKINGS)),
+    HACKNEY(set(ALL_COLORS), set(ALL_MARKINGS)),
     HAFLINGER(set(CHESTNUT, CREAMY), set(SOCKS, SOLID)),
     HANOVERIAN(set(ALL_COLORS), but(WHITEFIELD)),
-    IRISH_DRAUGHT_HORSE,
-    IRISH_SPORT_HORSE,
-    ICELANDIC,
+    IRISH_DRAUGHT_HORSE(set(ALL_COLORS), set(ALL_MARKINGS)),
+    IRISH_SPORT_HORSE(set(ALL_COLORS), set(ALL_MARKINGS)),
+    ICELANDIC(set(ALL_COLORS), set(ALL_MARKINGS)),
     LIPIZZANER(set(GRAY, WHITE, BLACK, DARK_BAY), set(BLACK_DOTS, SOLID, SOCKS)),
     LUSITANO(set(GRAY, BAY, DARK_BAY, CHESTNUT), set(SOLID, SOCKS, BLACK_DOTS)),
-    MARWARI,
-    MISSOURY_FOX_TROTTER,
-    MORGAN,
-    MUSTANG,
-    OLDENBURG,
-    PASO_FINO,
-    PERCHERON,
+    MARWARI(set(ALL_COLORS), set(ALL_MARKINGS)),
+    MISSOURY_FOX_TROTTER(set(ALL_COLORS), set(ALL_MARKINGS)),
+    MORGAN(set(ALL_COLORS), set(ALL_MARKINGS)),
+    MUSTANG(set(ALL_COLORS), set(ALL_MARKINGS)),
+    OLDENBURG(set(ALL_COLORS), set(ALL_MARKINGS)),
+    PASO_FINO(set(ALL_COLORS), set(ALL_MARKINGS)),
+    PERCHERON(set(ALL_COLORS), set(ALL_MARKINGS)),
     SELLE_FRANCAIS("Selle Français", set(DARK_BAY, BAY, CHESTNUT, BLACK), set(SOCKS, BLACK_DOTS, SOLID)),
-    SHIRE,
+    SHIRE(set(ALL_COLORS), set(ALL_MARKINGS)),
     STANDARDBRED(set(ALL_COLORS), but(WHITEFIELD)),
     SUFFOLK_PUNCH(set(CHESTNUT, CREAMY), set(SOCKS, SOLID)),
-    TENNESEE_WALKING_HORSE,
+    TENNESEE_WALKING_HORSE(set(ALL_COLORS), set(ALL_MARKINGS)),
     THOROUGHBRED(set(ALL_COLORS), but(WHITEFIELD)),
     WELSH_PONY(set(ALL_COLORS), but(WHITEFIELD)),
-    WARMBLOOD,
+    WARMBLOOD(set(ALL_COLORS), set(ALL_MARKINGS)),
     ;
 
     public final String humanName;
+    public final EntityType entityType;
     public final EnumSet<HorseColor> colors;
     public final EnumSet<HorseMarkings> markings;
     public static final HorseBreed[] ALL_BREEDS = values();
 
     HorseBreed(String humanName, EnumSet<HorseColor> colors, EnumSet<HorseMarkings> markings) {
         this.humanName = humanName == null ? niceEnumName(name()) : humanName;
+        this.entityType = EntityType.HORSE;
         this.colors = colors;
         this.markings = markings;
     }
@@ -73,8 +76,11 @@ public enum HorseBreed {
         this((String)null, colors, markings);
     }
 
-    HorseBreed() {
-        this((String)null, set(ALL_COLORS), set(ALL_MARKINGS));
+    HorseBreed(EntityType entityType) {
+        this.humanName = niceEnumName(name());
+        this.entityType = entityType;
+        this.colors = EnumSet.noneOf(HorseColor.class);
+        this.markings = EnumSet.noneOf(HorseMarkings.class);
     }
 
     private static String niceEnumName(String in) {
