@@ -1,9 +1,11 @@
 package net.equestriworlds.horse;
 
 import java.util.concurrent.ThreadLocalRandom;
+import lombok.Getter;
 import org.bukkit.entity.Horse;
 
-enum HorseColor {
+@Getter
+enum HorseColor implements HumanReadable {
     WHITE   ("White",    Horse.Color.WHITE),
     CREAMY  ("Buckskin", Horse.Color.CREAMY),
     CHESTNUT("Chestnut", Horse.Color.CHESTNUT),

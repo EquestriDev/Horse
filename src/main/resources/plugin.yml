@@ -7,16 +7,26 @@ depend: []
 softdepend: []
 commands:
   horse:
-    aliases: [ h ]
+    aliases: [h]
     description: Horse management
+    permission: horse.horse
     usage: |-
+      /h - Open horse menu
       /h claim - Claim your horse
       /h list - List your horses
       /h here - Bring the horse
       /h info - Information about your horse
       /h help - Usage
-    permission: horse.horse
+  horseadmin:
+    aliases: [ha]
+    description: Admin interface
+    permission: horse.admin
+    usage: |-
+      /ha - overview
 permissions:
   horse.horse:
     description: Use /h
+    default: op
+  horse.admin:
+    description: Use /ha
     default: op

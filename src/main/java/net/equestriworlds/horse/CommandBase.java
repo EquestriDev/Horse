@@ -5,22 +5,39 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.bukkit.Location;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 /**
- * Command related utilities.  They are expected to throw an exception
- * if there is an error which should be reported to the user.
+ * All command classes are expected to subclass this lean utility
+ * collection to get easy access to its methods and inner classes.
+ *
+ * CommandException can be thrown by most of the methods if anything
+ * is not in order.  The command handlers are expected to catch this
+ * exception and report its message back to the user.  This enables
+ * lean error checking and elaborate user feedback.
+ *
+ * Implementing classes:
+ * - HorseCommand - User interface (/horse, /h)
+ * - AdminCommand - Admin interface (/horseadmin, /ha)
+ * - EditCommand - Subcommand of (/ha)
  */
 @RequiredArgsConstructor
 abstract class CommandBase {
     protected final HorsePlugin plugin;
 
-    static final class CommandException extends Exception {
+    static class CommandException extends Exception {
         CommandException(String message) {
             super(message);
+        }
+    }
+
+    static final class PlayerExpectedException extends CommandException {
+        PlayerExpectedException() {
+            super("Player expected");
         }
     }
 
@@ -121,5 +138,26 @@ abstract class CommandBase {
         if (!this.plugin.getDatabase().updateHorse(data)) {
             throw new CommandException("Horse claiming failed. Please contact an administrator.");
         }
+    }
+
+    Player expectPlayer(CommandSender sender) throws PlayerExpectedException {
+        if (!(sender instanceof Player)) throw new PlayerExpectedException();
+        return (Player)sender;
+    }
+
+    int expectInt(String arg) throws CommandException {
+        try {
+            return Integer.parseInt(arg);
+        } catch (NumberFormatException nfe) {
+            throw new CommandException("Not a number: " + arg);
+        }
+    }
+
+    HorseData horseWithId(String arg) throws CommandException {
+        int id = expectInt(arg);
+        if (id < 0) throw new CommandException("Positive number expected: " + id);
+        HorseData data = this.plugin.findHorse(id);
+        if (data == null) throw new CommandException("Horse not found: " +id);
+        return data;
     }
 }

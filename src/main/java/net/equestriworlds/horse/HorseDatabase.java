@@ -81,8 +81,12 @@ final class HorseDatabase {
         try {
             ResultSet row = getConnection().createStatement().executeQuery("SELECT * FROM `horses`");
             while (row.next()) {
-                HorseData data = gson.fromJson(row.getString("data"), HorseData.class);
-                result.add(data);
+                try {
+                    HorseData data = gson.fromJson(row.getString("data"), HorseData.class);
+                    result.add(data);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         } catch (SQLException sqle) {
             sqle.printStackTrace();

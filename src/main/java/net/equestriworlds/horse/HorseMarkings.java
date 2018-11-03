@@ -1,9 +1,11 @@
 package net.equestriworlds.horse;
 
 import java.util.concurrent.ThreadLocalRandom;
+import lombok.Getter;
 import org.bukkit.entity.Horse;
 
-enum HorseMarkings {
+@Getter
+enum HorseMarkings implements HumanReadable {
     SOLID      ("Solid",      Horse.Style.NONE),
     SOCKS      ("Socks",      Horse.Style.WHITE),
     WHITEFIELD ("Whitefield", Horse.Style.WHITEFIELD),

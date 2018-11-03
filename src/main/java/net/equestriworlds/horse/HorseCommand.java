@@ -173,12 +173,12 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         ChatColor c = chatColorOf(horse);
         return new BaseComponent[] {
             new TextComponent("" + c + ChatColor.BOLD + horse.getName()),
-            new TextComponent("\nOwner " + ChatColor.GRAY + horse.getOwnerName()),
-            new TextComponent("\nJump " + ChatColor.GRAY + String.format("%.2f", horse.getJumpStrength())),
-            new TextComponent("\nSpeed " + ChatColor.GRAY + String.format("%.2f", horse.getMovementSpeed())),
+            new TextComponent("\nOwner " + ChatColor.GRAY + horse.getOwner() == null ? "None" : horse.getOwner().getName()),
+            new TextComponent("\nJump " + ChatColor.GRAY + String.format("%.2f", horse.getJump())),
+            new TextComponent("\nSpeed " + ChatColor.GRAY + String.format("%.2f", horse.getSpeed())),
             new TextComponent("\nColor " + c + horse.getColor().humanName),
             new TextComponent("\nMarkings " + ChatColor.GRAY + horse.getMarkings().humanName),
-            new TextComponent("\nAge " + ChatColor.GRAY + (horse.getAge() < 0 ? "Baby" : "Adult"))
+            new TextComponent("\nAge " + ChatColor.GRAY + horse.getAge().humanName)
         };
     }
 

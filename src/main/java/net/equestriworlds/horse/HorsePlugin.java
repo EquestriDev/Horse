@@ -1,9 +1,14 @@
 package net.equestriworlds.horse;
 
+import com.google.gson.Gson;
+import java.io.File;
+import java.io.FileReader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import org.bukkit.Chunk;
@@ -31,11 +36,15 @@ public final class HorsePlugin extends JavaPlugin {
     // --- Horse Data
     private HorseDatabase database;
     private List<HorseData> horses;
-    private List<SpawnedHorse> spawnedHorses;
+    private List<SpawnedHorse> spawnedHorses = new ArrayList<>();
     private final Map<String, Map<Long, List<HorseData>>> chunkCache = new HashMap<>();
     // --- Interaction
     private HorseListener horseListener;
     private HorseCommand horseCommand;
+    private AdminCommand adminCommand;
+    private EditCommand editCommand;
+    //
+    private List<String> horseNames;
 
     // --- JavaPlugin
 
@@ -45,13 +54,17 @@ public final class HorsePlugin extends JavaPlugin {
      */
     @Override
     public void onEnable() {
+        saveResource("horse_names.json", false);
         this.database = new HorseDatabase(this);
         this.database.createTables();
         loadHorses();
         this.horseListener = new HorseListener(this);
-        getServer().getPluginManager().registerEvents(this.horseListener, this);
         this.horseCommand = new HorseCommand(this);
+        this.adminCommand = new AdminCommand(this);
+        this.editCommand = new EditCommand(this);
+        getServer().getPluginManager().registerEvents(this.horseListener, this);
         getCommand("horse").setExecutor(this.horseCommand);
+        getCommand("horseadmin").setExecutor(this.adminCommand);
     }
 
     /**
@@ -68,7 +81,7 @@ public final class HorsePlugin extends JavaPlugin {
         chunkCache.clear();
     }
 
-    // --- Horse
+    // --- HorseData
 
     void loadHorses() {
         this.horses = this.database.loadHorses();
@@ -89,6 +102,8 @@ public final class HorsePlugin extends JavaPlugin {
         }
         return result;
     }
+
+    // --- SpawnedHorse
 
     /**
      * Spawn a horse at the given location, deleting it from the world
@@ -141,8 +156,6 @@ public final class HorsePlugin extends JavaPlugin {
         return spawned;
     }
 
-    // --- SpawnedHorse
-
     SpawnedHorse findSpawnedHorse(HorseData data) {
         return this.spawnedHorses.stream().filter(sh -> sh.data == data).findFirst().orElse(null);
     }
@@ -158,6 +171,10 @@ public final class HorsePlugin extends JavaPlugin {
      */
     List<HorseData> findHorses(Player player) {
         return horses.stream().filter(h -> h.isOwner(player)).collect(Collectors.toList());
+    }
+
+    HorseData findHorse(int id) {
+        return horses.stream().filter(h -> h.getId() == id).findFirst().orElse(null);
     }
 
     // --- Chunk cache
@@ -196,5 +213,25 @@ public final class HorsePlugin extends JavaPlugin {
         List<HorseData> horseCache = worldCache.get(c);
         if (horseCache != null) result.addAll(horseCache);
         return result;
+    }
+
+    // --- Random
+
+    List<String> getHorseNames() {
+        if (this.horseNames == null) {
+            try (FileReader reader = new FileReader(new File(getDataFolder(), "horse_names.json"))) {
+                this.horseNames = (List<String>)new Gson().fromJson(reader, List.class);
+            } catch (Exception e) {
+                e.printStackTrace();
+                this.horseNames = Collections.emptyList();
+            }
+        }
+        return this.horseNames;
+    }
+
+    String randomHorseName(Random random) {
+        List<String> names = getHorseNames();
+        if (names == null || names.isEmpty()) return "X";
+        return names.get(random.nextInt(names.size()));
     }
 }

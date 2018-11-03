@@ -1,7 +1,12 @@
 package net.equestriworlds.horse;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Value;
 import org.bukkit.Bukkit;
@@ -14,23 +19,21 @@ import org.bukkit.entity.Horse;
 import org.bukkit.entity.Player;
 
 @Data
-// TODO
-// Inventory (part of NBT)
+// TODO: Inventory (part of NBT)
 final class HorseData {
     private int id = -1;
     // Identity
     private String name;
-    private UUID owner;
-    private String ownerName;
-    private HorseGender gender;
+    private Equestrian owner;
     // EquestriWorlds Properties
+    private HorseGender gender;
+    private long born;
+    private HorseAge age;
     private HorseBreed breed;
-    private int age;
     // Minecraft Properties
     private HorseColor color;
     private HorseMarkings markings;
-    private double jumpStrength;
-    private double movementSpeed;
+    private double jump, speed;
     // Access
     private HashSet<UUID> trusted = new HashSet<>();
     // Entity
@@ -38,6 +41,12 @@ final class HorseData {
     Breeding breeding; // optional
     Grooming grooming; // optonal
     Health health;
+
+    @Data @AllArgsConstructor
+    static final class Equestrian {
+        public final UUID uuid;
+        String name;
+    }
 
     @Value
     static final class HorseLocation {
@@ -68,13 +77,13 @@ final class HorseData {
     }
 
     enum BreedingStage {
+        FOAL,
+        RIDABLE,
+        BREEDABLE,
         PREGNANT,
         MARE_RECOVERY,
         STALLION_RECOVERY,
-        FOAL,
-        RIDABLE,
-        ABORT_RECOVERY,
-        BREEDABLE;
+        ABORT_RECOVERY;
     }
 
     @Data
@@ -98,14 +107,23 @@ final class HorseData {
         double temperature, pulse, eyes, hydration, body, due;
     }
 
+    // --- Util
+
+    double getJumpHeight() {
+        double x = this.jump;
+        return -0.1817584952 * Math.pow(x, 3) + 3.689713992 * Math.pow(x, 2) + 2.128599134 * x - 0.343930367;
+    }
+
+    // --- Entity Properties
+
     void loadProperties(AbstractHorse horse) {
         this.name = horse.getCustomName();
         if (horse instanceof Horse) {
             this.color = HorseColor.of(((Horse)horse).getColor());
             this.markings = HorseMarkings.of(((Horse)horse).getStyle());
         }
-        this.jumpStrength = horse.getJumpStrength();
-        this.movementSpeed = horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).getValue();
+        this.jump = horse.getJumpStrength();
+        this.speed = horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).getValue();
     }
 
     void applyProperties(AbstractHorse horse) {
@@ -114,16 +132,22 @@ final class HorseData {
             ((Horse)horse).setColor(this.color.bukkitColor);
             ((Horse)horse).setStyle(this.markings.bukkitStyle);
         }
-        horse.setJumpStrength(this.jumpStrength);
-        horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.movementSpeed);
-        horse.setAge(this.age);
+        horse.setJumpStrength(this.jump);
+        horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.speed);
+        horse.setAge(this.age.minecraftAge);
+        horse.setAgeLock(true);
         if (owner != null) {
-            AnimalTamer player = Bukkit.getPlayer(owner);
-            if (player == null) player = Bukkit.getOfflinePlayer(owner);
             horse.setTamed(true);
+            AnimalTamer player = Bukkit.getPlayer(this.owner.uuid);
+            if (player == null) player = Bukkit.getOfflinePlayer(this.owner.uuid);
             if (player != null) horse.setOwner(player);
+        } else {
+            horse.setTamed(false);
+            horse.setOwner(null);
         }
     }
+
+    // --- Location
 
     void clearLocation() {
         this.location = null;
@@ -133,12 +157,57 @@ final class HorseData {
         this.location = new HorseLocation(bukkitLocation);
     }
 
+    // --- Owner
+
     void storeOwner(Player player) {
-        owner = player.getUniqueId();
-        ownerName = player.getName();
+        this.owner = new Equestrian(player.getUniqueId(), player.getName());
     }
 
     boolean isOwner(Player player) {
-        return owner != null && owner.equals(player.getUniqueId());
+        return owner != null && owner.uuid.equals(player.getUniqueId());
+    }
+
+    // --- Randomization
+
+    private static <T extends Enum> T randomEnum(T[] es, Random random) {
+        return es[random.nextInt(es.length)];
+    }
+
+    private static <T extends Enum> T randomEnum(Set<T> es, Random random) {
+        if (es.isEmpty()) return null;
+        return new ArrayList<T>(es).get(random.nextInt(es.size()));
+    }
+
+    void randomize(HorsePlugin plugin) {
+        Random random = ThreadLocalRandom.current();
+        randomize(plugin, "name", random);
+        randomize(plugin, "gender", random);
+        randomize(plugin, "age", random);
+        randomize(plugin, "breed", random);
+        randomize(plugin, "color", random);
+        randomize(plugin, "markings", random);
+        randomize(plugin, "jump", random);
+        randomize(plugin, "speed", random);
+        randomize(plugin, "markings", random);
+        randomize(plugin, "jump", random);
+        randomize(plugin, "speed", random);
+    }
+
+    Object randomize(HorsePlugin plugin, String field, Random random) {
+        switch (field) {
+        case "name": return this.name = plugin.randomHorseName(random);
+        case "gender": return this.gender = randomEnum(HorseGender.values(), random);
+        case "age": return this.age = randomEnum(HorseAge.values(), random);
+        case "breed": return this.breed = randomEnum(HorseBreed.values(), random);
+        case "color": return this.color = randomEnum(this.breed.colors, random);
+        case "markings": return this.markings = randomEnum(this.breed.markings, random);
+        case "jump": return this.jump = 0.4 + random.nextDouble() * 0.3 + random.nextDouble() * 0.3; // 0.4 - 1.0, skewing towards 0.7
+        case "speed": return this.speed = 0.1125 + random.nextDouble() * 0.1125 + random.nextDouble() * 0.1125; // 0.1125 - 0.3375
+        default: return null;
+        }
+    }
+
+    Object randomize(HorsePlugin plugin, String field) {
+        return randomize(plugin, field, ThreadLocalRandom.current());
     }
 }
