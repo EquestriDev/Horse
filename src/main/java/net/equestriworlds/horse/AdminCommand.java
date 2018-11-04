@@ -35,8 +35,12 @@ final class AdminCommand extends CommandBase implements TabExecutor {
 
     private boolean onAdminCommand(CommandSender sender, String cmd, String[] args) throws CommandException {
         switch (cmd) {
-        case "edit": // /horse edit [edit args]
+        case "edit": { // /horse edit [edit args]
             return this.plugin.getEditCommand().onEditCommand(expectPlayer(sender), args);
+        }
+        case "new": {
+            return this.plugin.getEditCommand().newSession(expectPlayer(sender));
+        }
         default: return false;
         }
     }

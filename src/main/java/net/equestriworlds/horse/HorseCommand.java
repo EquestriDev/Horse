@@ -31,7 +31,10 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             return true;
         }
         Player player = (Player)sender;
-        if (args.length == 0) return showHorseList(player);
+        if (args.length == 0) {
+            new HorseGUI(this.plugin).open(player);
+            return true;
+        }
         try {
             return onCommand(player, args[0], Arrays.copyOfRange(args, 1, args.length));
         } catch (CommandException cex) {
@@ -73,11 +76,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             } else {
                 data = this.ownedHorseOf(player, args);
             }
-            player.sendMessage("");
-            player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Horse Information");
-            player.spigot().sendMessage(describeHorse(data));
-            player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + data.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + data.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + data.getName() + " here."))).create());
-            player.sendMessage("");
+            sendHorseInfo(player, data);
             return true;
         }
         case "list": case "l": {
@@ -91,6 +90,14 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         }
         default: return false;
         }
+    }
+
+    void sendHorseInfo(Player player, HorseData data) {
+            player.sendMessage("");
+            player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Horse Information");
+            player.spigot().sendMessage(describeHorse(data));
+            player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + data.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + data.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + data.getName() + " here."))).create());
+            player.sendMessage("");
     }
 
     // --- TabCompleter

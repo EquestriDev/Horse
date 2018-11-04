@@ -9,7 +9,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
@@ -156,5 +159,35 @@ final class HorseListener implements Listener {
         spawned.data.storeLocation(entity.getLocation());
         entity.eject();
         this.plugin.getDatabase().updateHorse(spawned.data);
+    }
+
+    // --- GUI
+
+    @EventHandler
+    public void onGUIOpen(InventoryOpenEvent event) {
+        if (event.getInventory().getHolder() instanceof HorseGUI) {
+            ((HorseGUI)event.getInventory().getHolder()).onOpen(event);
+        }
+    }
+
+    @EventHandler
+    public void onGUIClose(InventoryCloseEvent event) {
+        if (event.getInventory().getHolder() instanceof HorseGUI) {
+            ((HorseGUI)event.getInventory().getHolder()).onClose(event);
+        }
+    }
+
+    @EventHandler
+    public void onGUIClick(InventoryClickEvent event) {
+        if (event.getInventory().getHolder() instanceof HorseGUI) {
+            ((HorseGUI)event.getInventory().getHolder()).onClick(event);
+        }
+    }
+
+    @EventHandler
+    public void onGUIDrag(InventoryDragEvent event) {
+        if (event.getInventory().getHolder() instanceof HorseGUI) {
+            ((HorseGUI)event.getInventory().getHolder()).onDrag(event);
+        }
     }
 }

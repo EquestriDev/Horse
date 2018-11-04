@@ -116,7 +116,7 @@ abstract class CommandBase {
      * referring to with the given arguments. Args is assumed to
      */
     HorseData ownedHorseOf(Player player, String[] args) throws CommandException {
-        StringBuilder sb = new StringBuilder(args[1]);
+        StringBuilder sb = new StringBuilder(args[0]);
         for (int i = 1; i < args.length; i += 1) sb.append(" ").append(args[i]);
         String arg = sb.toString();
         List<HorseData> playerHorses = this.plugin.findHorses(player);
@@ -157,7 +157,7 @@ abstract class CommandBase {
         int id = expectInt(arg);
         if (id < 0) throw new CommandException("Positive number expected: " + id);
         HorseData data = this.plugin.findHorse(id);
-        if (data == null) throw new CommandException("Horse not found: " +id);
+        if (data == null) throw new CommandException("Horse not found: " + id);
         return data;
     }
 }

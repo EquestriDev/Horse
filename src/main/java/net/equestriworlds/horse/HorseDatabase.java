@@ -56,8 +56,7 @@ final class HorseDatabase {
             if (!result.next()) throw new SQLException("Failed to save horse");
             data.setId(result.getInt(1));
         } catch (SQLException sqle) {
-            sqle.printStackTrace();
-            return false;
+            throw new IllegalStateException(sqle);
         }
         return true;
     }

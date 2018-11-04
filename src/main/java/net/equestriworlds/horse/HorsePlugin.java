@@ -16,6 +16,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -32,7 +33,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class HorsePlugin extends JavaPlugin {
     // --- Constants
     public static final String SCOREBOARD_MARKER = "equestriworlds.horse";
-    public static final String SCOREBOARD_ID = "equestriworlds.id";
     // --- Horse Data
     private HorseDatabase database;
     private List<HorseData> horses;
@@ -73,12 +73,23 @@ public final class HorsePlugin extends JavaPlugin {
      */
     @Override
     public void onDisable() {
-        for (SpawnedHorse spawnedHorse: spawnedHorses) {
-            spawnedHorse.despawn();
+        for (SpawnedHorse spawned: spawnedHorses) {
+            if (spawned.isPresent()) {
+                spawned.data.storeLocation(spawned.getEntity().getLocation());
+                this.database.updateHorse(spawned.data);
+            }
+            spawned.despawn();
         }
         horses.clear();
         spawnedHorses.clear();
         chunkCache.clear();
+        for (Player player: getServer().getOnlinePlayers()) {
+            InventoryView view = player.getOpenInventory();
+            if (view != null && view.getTopInventory().getHolder() instanceof HorseGUI) {
+                player.closeInventory();
+            }
+            player.removeMetadata(EditCommand.META_EDITING, this);
+        }
     }
 
     // --- HorseData
@@ -103,6 +114,12 @@ public final class HorsePlugin extends JavaPlugin {
         return result;
     }
 
+    void addHorse(HorseData data) {
+        if (data.getId() >= 0) throw new IllegalArgumentException("Horse already exists");
+        this.database.saveHorse(data);
+        this.horses.add(data);
+    }
+
     // --- SpawnedHorse
 
     /**
@@ -115,7 +132,6 @@ public final class HorsePlugin extends JavaPlugin {
         if (location == null) throw new NullPointerException("location cannot be null");
         AbstractHorse entity = (AbstractHorse)location.getWorld().spawn(location, (Class<? extends AbstractHorse>)data.getBreed().entityType.getEntityClass(), data::applyProperties);
         entity.addScoreboardTag(SCOREBOARD_MARKER);
-        entity.addScoreboardTag(SCOREBOARD_ID + data.getId());
         data.storeLocation(location);
         this.database.updateHorse(data);
         // Update or create the SpawnedHorse
@@ -145,7 +161,6 @@ public final class HorsePlugin extends JavaPlugin {
             // Spawn the entity
             AbstractHorse entity = (AbstractHorse)location.getWorld().spawn(location, (Class<? extends AbstractHorse>)data.getBreed().entityType.getEntityClass(), data::applyProperties);
             entity.addScoreboardTag(SCOREBOARD_MARKER);
-            entity.addScoreboardTag(SCOREBOARD_ID + data.getId());
             spawned.setEntity(entity);
         } else {
             spawned.getEntity().teleport(location);
@@ -153,6 +168,31 @@ public final class HorsePlugin extends JavaPlugin {
         // Update data
         spawned.data.storeLocation(location);
         this.database.updateHorse(spawned.data);
+        return spawned;
+    }
+
+    /**
+     * Update a horse entity to match the new data if it exists in the
+     * world and return its SpawnedHorse instance. Do nothing if the
+     * entity doesn't exist in the world.
+     *
+     * This may respawn the horse if the breed changed.  A horse breed
+     * does not usually change unless an admin makes it so via the
+     * EditCommand.
+     */
+    SpawnedHorse updateHorseEntity(HorseData data) {
+        SpawnedHorse spawned = this.findSpawnedHorse(data);
+        if (spawned == null || !spawned.isPresent()) return null;
+        AbstractHorse entity = spawned.getEntity();
+            Location location = entity.getLocation();
+        if (entity.getType() != data.getBreed().entityType) {
+            spawned.despawn();
+            spawnHorse(data, location);
+        } else {
+            data.applyProperties(entity);
+        }
+        data.storeLocation(location);
+        this.database.updateHorse(data);
         return spawned;
     }
 

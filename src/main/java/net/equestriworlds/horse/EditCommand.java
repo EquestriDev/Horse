@@ -14,6 +14,7 @@ import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
+import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.metadata.MetadataValue;
@@ -41,19 +42,21 @@ final class EditCommand extends CommandBase {
     private final EditField breed = new EditField<HorseBreed>("breed", "Breed", HorseData::getBreed, HorseData::setBreed, HorseBreed::valueOf);
     private final EditField color = new EditField<HorseColor>("color", "Color", HorseData::getColor, HorseData::setColor, HorseColor::valueOf);
     private final EditField markings = new EditField<HorseMarkings>("markings", "Markings", HorseData::getMarkings, HorseData::setMarkings, HorseMarkings::valueOf);
-    private final EditField jump = new EditField<Double>("jump", "Jump Strength", HorseData::getJump, HorseData::setJump, Double::parseDouble);
+    private final EditField jump = new EditField<Double>("jump", "Jump", HorseData::getJump, HorseData::setJump, Double::parseDouble);
     private final EditField speed = new EditField<Double>("speed", "Speed", HorseData::getSpeed, HorseData::setSpeed, Double::parseDouble);
     private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.jump, this.speed);
     private final List<ChatColor> colorful = Arrays.asList(ChatColor.AQUA, ChatColor.BLUE, ChatColor.GOLD, ChatColor.GREEN, ChatColor.LIGHT_PURPLE, ChatColor.RED, ChatColor.YELLOW);
     private final List<String> dice = Arrays.asList("\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685");
+    static final String META_EDITING = "horse.admin.editing";
 
     EditCommand(HorsePlugin plugin) {
         super(plugin);
         Collections.shuffle(this.colorful, new Random(0));
     }
 
+    @RequiredArgsConstructor
     static final class Editing {
-        private final HorseData data = new HorseData();
+        final HorseData data;
     }
 
     @RequiredArgsConstructor
@@ -62,7 +65,6 @@ final class EditCommand extends CommandBase {
         final Function<HorseData, T> getter;
         final BiConsumer<HorseData, T> setter;
         final Function<String, T> converter;
-        boolean newline = true;
     }
 
     // --- Command and subcommands
@@ -71,22 +73,54 @@ final class EditCommand extends CommandBase {
      * Called by AdminCommand#onCommand.
      */
     boolean onEditCommand(Player player, String[] args) throws CommandException {
-        if (getEditingSession(player) == null) {
-            Editing editing = new Editing();
-            editing.data.randomize(this.plugin);
-            setEditingSession(player, editing); // TODO Remove me
-        }
+        HorseData data;
         // /ha edit
         if (args.length == 0) {
-            showEditingMenu(player, editingSessionOf(player).data);
+            AbstractHorse entity = interactedHorseOf(player);
+            SpawnedHorse spawned = spawnedHorseOf(entity);
+            data = spawned.data;
+            setEditingSession(player, new Editing(data));
+        } else {
+            data = editingSessionOf(player).data;
+        }
+        if (args.length == 0) {
+            showEditingMenu(player, data);
             return true;
         }
         // build the value
         String key = args[0];
         String value;
+        if (args.length == 1 && args[0].equals("spawn")) {
+            if (data.getId() >= 0) throw new CommandException("Horse already exists.");
+            this.plugin.addHorse(data);
+            this.plugin.spawnHorse(data, player.getLocation());
+            return true;
+        }
         if (args.length == 2 && args[0].equals("randomize")) {
-            editingSessionOf(player).data.randomize(this.plugin, args[1]);
-            showEditingMenu(player, editingSessionOf(player).data);
+            data.randomize(this.plugin, args[1]);
+            if (data.getId() >= 0) this.plugin.updateHorseEntity(data);
+            showEditingMenu(player, data);
+            return true;
+        }
+        if (args.length == 2 && args[0].equals("preset")) {
+            switch (args[1]) {
+            case "hunter":
+                data.setJump(0.7);
+                data.setSpeed(0.38);
+                break;
+            case "dressage":
+                data.setJump(0.79);
+                data.setSpeed(0.225);
+                break;
+            case "max":
+                data.setJump(0.79);
+                data.setSpeed(0.38);
+                break;
+            default:
+                throw new CommandException("Invalid preset: " + args[1]);
+            }
+            if (data.getId() >= 0) this.plugin.updateHorseEntity(data);
+            showEditingMenu(player, data);
             return true;
         }
         if (args.length == 1) {
@@ -96,6 +130,14 @@ final class EditCommand extends CommandBase {
             for (int i = 2; i < args.length; i += 1) sb.append(" ").append(args[i]);
             return onEditCommand(player, args[0], sb.toString());
         }
+    }
+
+    boolean newSession(Player player) {
+        Editing editing = new Editing(new HorseData());
+        editing.data.randomize(this.plugin);
+        setEditingSession(player, editing);
+        showEditingMenu(player, editing.data);
+        return true;
     }
 
     /**
@@ -155,6 +197,7 @@ final class EditCommand extends CommandBase {
             if (data.getMarkings() != null && !databreed.markings.contains(data.getMarkings())) data.randomize(this.plugin, "markings");
             if (data.getMarkings() == null && !databreed.markings.isEmpty()) data.randomize(this.plugin, "markings");
         }
+        if (data.getId() >= 0) this.plugin.updateHorseEntity(data);
         showEditingMenu(player, data);
         return true;
     }
@@ -258,25 +301,49 @@ final class EditCommand extends CommandBase {
                 HorseGender horseGender = (HorseGender)o;
                 cb.append(horseGender.symbol).color(horseGender.color);
             }
-            if (field.newline) {
-                player.spigot().sendMessage(cb.create());
-                cb = null;
-            } else {
-                cb.append(" ").reset();
-            }
+            player.spigot().sendMessage(cb.create());
+            cb = null;
         }
-        if (cb != null) player.spigot().sendMessage(cb.create());
-        player.sendMessage("");
+        // Presets
+        {
+            cb = new ComponentBuilder("");
+            cb.append("Preset").color(ChatColor.LIGHT_PURPLE).bold(true).italic(true);
+            cb.append(" ").reset();
+            ChatColor valueColor = colorful.get(index++ % colorful.size());
+            cb.append("[Hunter]").color(valueColor)
+                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset hunter"))
+                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Hunter")));
+            cb.append(" ").reset();
+            valueColor = colorful.get(index++ % colorful.size());
+            cb.append("[Dressage]").color(valueColor)
+                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset dressage"))
+                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Dressage")));
+            cb.append(" ").reset();
+            valueColor = colorful.get(index++ % colorful.size());
+            cb.append("[Max]").color(valueColor)
+                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset max"))
+                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Maximum")));
+            player.spigot().sendMessage(cb.create());
+            cb = null;
+        }
+        if (data.getId() < 0) {
+            cb = new ComponentBuilder("  ");
+            cb.append("[Spawn]").color(ChatColor.GOLD)
+                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit spawn"))
+                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GOLD + "Spawn this " + data.getBreed().humanName)));
+            player.spigot().sendMessage(cb.create());
+            cb = null;
+        }
     }
 
     // --- Utility
 
     String displayValue(HorseData data, EditField field, Object o) {
         if (field == this.age) {
-            HorseAge age = (HorseAge)o;
-            if (age == HorseAge.FOAL && data.getGender().isMale()) return "Colt";
-            if (age == HorseAge.FOAL && data.getGender().isFemale()) return "Filly";
-            return age.humanName;
+            HorseAge hage = (HorseAge)o;
+            if (hage == HorseAge.FOAL && data.getGender().isMale()) return "Colt";
+            if (hage == HorseAge.FOAL && data.getGender().isFemale()) return "Filly";
+            return hage.humanName;
         } else if (o instanceof HumanReadable) {
             return ((HumanReadable)o).getHumanName();
         } else if (o instanceof Integer) {
@@ -306,7 +373,7 @@ final class EditCommand extends CommandBase {
     }
 
     Editing getEditingSession(Player player) {
-        for (MetadataValue v: player.getMetadata("horse.admin.editing")) {
+        for (MetadataValue v: player.getMetadata(META_EDITING)) {
             if (v.getOwningPlugin().equals(this.plugin)
                 && v.value() instanceof Editing) return (Editing)v.value();
         }

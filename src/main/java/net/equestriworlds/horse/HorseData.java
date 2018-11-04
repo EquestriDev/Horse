@@ -127,7 +127,7 @@ final class HorseData {
     }
 
     void applyProperties(AbstractHorse horse) {
-        horse.setCustomName(this.name);
+        horse.setCustomName(this.name + " " + this.gender.color + this.gender.symbol);
         if (horse instanceof Horse) {
             ((Horse)horse).setColor(this.color.bukkitColor);
             ((Horse)horse).setStyle(this.markings.bukkitStyle);
@@ -136,6 +136,8 @@ final class HorseData {
         horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.speed);
         horse.setAge(this.age.minecraftAge);
         horse.setAgeLock(true);
+        horse.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(20.0);
+        horse.setHealth(20.0);
         if (owner != null) {
             horse.setTamed(true);
             AnimalTamer player = Bukkit.getPlayer(this.owner.uuid);
@@ -164,7 +166,7 @@ final class HorseData {
     }
 
     boolean isOwner(Player player) {
-        return owner != null && owner.uuid.equals(player.getUniqueId());
+        return this.owner != null && this.owner.uuid.equals(player.getUniqueId());
     }
 
     // --- Randomization

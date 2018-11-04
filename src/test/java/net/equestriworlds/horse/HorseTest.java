@@ -15,12 +15,12 @@ public final class HorseTest {
         horse.setName("Epona");
         horse.setColor(HorseColor.random());
         horse.setMarkings(HorseMarkings.random());
-        horse.setOwner(UUID.randomUUID());
+        //horse.setOwner(UUID.randomUUID());
         HorseData horse2 = new HorseData();
         horse2.setName("Spirit");
         horse2.setColor(HorseColor.random());
         horse2.setMarkings(HorseMarkings.random());
-        horse2.setOwner(UUID.randomUUID());
+        //horse2.setOwner(UUID.randomUUID());
         List<HorseData> list = Arrays.asList(horse, horse2);
         Gson gson = new Gson();
         String json = gson.toJson(list);
