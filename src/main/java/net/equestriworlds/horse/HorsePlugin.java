@@ -38,12 +38,13 @@ public final class HorsePlugin extends JavaPlugin {
     private List<HorseData> horses;
     private List<SpawnedHorse> spawnedHorses = new ArrayList<>();
     private final Map<String, Map<Long, List<HorseData>>> chunkCache = new HashMap<>();
-    // --- Interaction
-    private HorseListener horseListener;
+    // --- Commands
     private HorseCommand horseCommand;
     private AdminCommand adminCommand;
     private EditCommand editCommand;
-    //
+    // --- Features
+    private HorseListener horseListener;
+    private Gaits gaits;
     private List<String> horseNames;
 
     // --- JavaPlugin
@@ -62,7 +63,9 @@ public final class HorsePlugin extends JavaPlugin {
         this.horseCommand = new HorseCommand(this);
         this.adminCommand = new AdminCommand(this);
         this.editCommand = new EditCommand(this);
+        this.gaits = new Gaits(this);
         getServer().getPluginManager().registerEvents(this.horseListener, this);
+        getServer().getPluginManager().registerEvents(this.gaits, this);
         getCommand("horse").setExecutor(this.horseCommand);
         getCommand("horseadmin").setExecutor(this.adminCommand);
     }
@@ -88,7 +91,8 @@ public final class HorsePlugin extends JavaPlugin {
             if (view != null && view.getTopInventory().getHolder() instanceof HorseGUI) {
                 player.closeInventory();
             }
-            player.removeMetadata(EditCommand.META_EDITING, this);
+            this.editCommand.removeEditingSession(player);
+            this.gaits.removeGaitMeta(player);
         }
     }
 

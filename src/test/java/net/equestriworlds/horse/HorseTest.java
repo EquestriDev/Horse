@@ -5,7 +5,7 @@ import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
+import org.bukkit.Sound;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,6 +35,15 @@ public final class HorseTest {
         System.out.println(json2);
         Assert.assertEquals(list, list2);
         Assert.assertEquals(json, json2);
+    }
+
+    @Test
+    public void soundTest() throws java.io.IOException {
+        java.io.PrintStream out = new java.io.PrintStream("target/sounds.txt");
+        for (Sound sound: Sound.values()) {
+            out.println(sound.name());
+        }
+        out.close();
     }
 
     @Test

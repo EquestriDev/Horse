@@ -147,6 +147,7 @@ final class HorseData {
             horse.setTamed(false);
             horse.setOwner(null);
         }
+        horse.getInventory().setSaddle(new org.bukkit.inventory.ItemStack(org.bukkit.Material.SADDLE));
     }
 
     // --- Location

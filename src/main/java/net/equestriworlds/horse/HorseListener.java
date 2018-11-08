@@ -20,6 +20,10 @@ import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.spigotmc.event.entity.EntityDismountEvent;
 
+/**
+ * This class listens for various horse related events on behalf of
+ * features or generic too simple to warrant their own manager class.
+ */
 @RequiredArgsConstructor
 final class HorseListener implements Listener {
     private final HorsePlugin plugin;
@@ -107,14 +111,15 @@ final class HorseListener implements Listener {
 
     /**
      * Use this event to check if a horse entity is a valid equestri
-     * horse. Remove it if it is invalid due to some prior crash or
-     * error.
+     * error.  horse.  Remove the entity if it is invalid due to some
+     * prior crash or other error.
      */
     @EventHandler(ignoreCancelled = false, priority = EventPriority.LOWEST)
     public void onEntityDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof AbstractHorse)) return;
         AbstractHorse entity = (AbstractHorse)event.getEntity();
-        checkHorseEntityForValidity(entity);
+        SpawnedHorse spawned = checkHorseEntityForValidity(entity);
+        if (spawned != null) event.setCancelled(true);
     }
 
     /**
@@ -124,7 +129,7 @@ final class HorseListener implements Listener {
     public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof AbstractHorse)) return;
         AbstractHorse entity  = (AbstractHorse)event.getRightClicked();
-        checkHorseEntityForValidity(entity);
+        SpawnedHorse spawned = checkHorseEntityForValidity(entity);
     }
 
     /**
@@ -135,10 +140,11 @@ final class HorseListener implements Listener {
      * - A horse entity has the scoreboard marker.
      * - AND said horse is not represented by a StoredHorse instance via HorsePlugin.
      */
-    void checkHorseEntityForValidity(AbstractHorse entity) {
-        if (!entity.getScoreboardTags().contains(HorsePlugin.SCOREBOARD_MARKER)) return;
+    SpawnedHorse checkHorseEntityForValidity(AbstractHorse entity) {
+        if (!entity.getScoreboardTags().contains(HorsePlugin.SCOREBOARD_MARKER)) return null;
         SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
         if (spawned == null || !spawned.represents(entity)) entity.remove();
+        return spawned;
     }
 
     /**

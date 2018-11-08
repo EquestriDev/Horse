@@ -47,16 +47,10 @@ final class EditCommand extends CommandBase {
     private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.jump, this.speed);
     private final List<ChatColor> colorful = Arrays.asList(ChatColor.AQUA, ChatColor.BLUE, ChatColor.GOLD, ChatColor.GREEN, ChatColor.LIGHT_PURPLE, ChatColor.RED, ChatColor.YELLOW);
     private final List<String> dice = Arrays.asList("\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685");
-    static final String META_EDITING = "horse.admin.editing";
 
     EditCommand(HorsePlugin plugin) {
         super(plugin);
         Collections.shuffle(this.colorful, new Random(0));
-    }
-
-    @RequiredArgsConstructor
-    static final class Editing {
-        final HorseData data;
     }
 
     @RequiredArgsConstructor
@@ -366,6 +360,12 @@ final class EditCommand extends CommandBase {
 
     // --- Editing Session utility
 
+    @RequiredArgsConstructor
+    static final class Editing {
+        static final String KEY = "horse.admin.editing";
+        final HorseData data;
+    }
+
     Editing editingSessionOf(Player player) throws CommandException {
         Editing editing = getEditingSession(player);
         if (editing == null) throw new CommandException("No editing session");
@@ -373,7 +373,7 @@ final class EditCommand extends CommandBase {
     }
 
     Editing getEditingSession(Player player) {
-        for (MetadataValue v: player.getMetadata(META_EDITING)) {
+        for (MetadataValue v: player.getMetadata(Editing.KEY)) {
             if (v.getOwningPlugin().equals(this.plugin)
                 && v.value() instanceof Editing) return (Editing)v.value();
         }
@@ -381,7 +381,11 @@ final class EditCommand extends CommandBase {
     }
 
     void setEditingSession(Player player, Editing editing) {
-        player.setMetadata("horse.admin.editing", new FixedMetadataValue(this.plugin, editing));
+        player.setMetadata(Editing.KEY, new FixedMetadataValue(this.plugin, editing));
+    }
+
+    void removeEditingSession(Player player) {
+        player.removeMetadata(Editing.KEY, this.plugin);
     }
 
     EditField editFieldOf(String arg) throws CommandException {
