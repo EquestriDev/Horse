@@ -16,13 +16,18 @@ commands:
       /h list - List your horses
       /h here - Bring the horse
       /h info - Information about your horse
+      /h registerbrand - Register brand
+      /h brandlist - List brands
       /h help - Usage
   horseadmin:
     aliases: [ha]
     description: Admin interface
     permission: horse.admin
     usage: |-
-      /ha - overview
+      /ha - Overview
+      /ha new - Edit new horse
+      /ha edit - Edit existing horse
+      /ha deletebrand <owner> - Delete horse brand
 permissions:
   horse.horse:
     description: Use /h

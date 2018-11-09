@@ -3,6 +3,7 @@ package net.equestriworlds.horse;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -11,7 +12,7 @@ import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
 
 final class AdminCommand extends CommandBase implements TabExecutor {
-    public static final List<String> COMMANDS = Arrays.asList("claim", "list", "here", "bring", "info");
+    private final List<String> commands = Arrays.asList("edit", "new", "move", "info", "deletebrand");
 
     AdminCommand(HorsePlugin plugin) {
         super(plugin);
@@ -67,6 +68,15 @@ final class AdminCommand extends CommandBase implements TabExecutor {
             sender.sendMessage("" + data);
             return true;
         }
+        case "deletebrand": {
+            if (args.length != 1) return false;
+            String name = args[0];
+            UUID ownerId = this.plugin.cachedPlayerUuid(name);
+            HorseBrand horseBrand = this.plugin.getHorseBrands().remove(ownerId);
+            if (horseBrand == null) throw new CommandException(name + " does not have a brand.");
+            this.plugin.getDatabase().deleteHorseBrand(horseBrand.getOwner());
+            sender.sendMessage("Horse brand deleted: " + horseBrand.getFormat() + ChatColor.RESET + ".");
+        }
         default:
             return false;
         }
@@ -74,6 +84,7 @@ final class AdminCommand extends CommandBase implements TabExecutor {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 1) return tabComplete(args[0], this.commands);
         return null;
     }
 }

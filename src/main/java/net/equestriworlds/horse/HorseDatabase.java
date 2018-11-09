@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -34,9 +35,18 @@ final class HorseDatabase {
 
     void createTables() {
         try {
-            String sql = "CREATE TABLE IF NOT EXISTS `horses` ("
-                + "`id` INTEGER PRIMARY KEY AUTOINCREMENT,"
+            String sql;
+            sql = "CREATE TABLE IF NOT EXISTS `horses` ("
+                + "`id` INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "`created` DATETIME NOT NULL, "
                 + "`data` TEXT"
+                + ")";
+            getConnection().createStatement().execute(sql);
+            sql = "CREATE TABLE IF NOT EXISTS `brands` ("
+                + "`id` INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "`created` DATETIME NOT NULL, "
+                + "`owner` VARCHAR(40) NOT NULL UNIQUE, "
+                + "`format` VARCHAR(255) NOT NULL"
                 + ")";
             getConnection().createStatement().execute(sql);
         } catch (SQLException sqle) {
@@ -48,8 +58,9 @@ final class HorseDatabase {
         if (data == null) throw new NullPointerException("data cannot be null");
         if (data.getId() >= 0) throw new IllegalArgumentException("saved data appears to exist in database: " + data);
         Gson gson = new Gson();
-        String sql = "INSERT INTO `horses` (data) values ('" + gson.toJson(data) + "')";
+        String sql = "INSERT INTO `horses` (`created`, `data`) values (DATETIME('NOW'), ?)";
         try (PreparedStatement statement = getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            statement.setString(1, gson.toJson(data));
             int ret = statement.executeUpdate();
             if (ret != 1) throw new SQLException("Failed to save horse");
             ResultSet result = statement.getGeneratedKeys();
@@ -76,7 +87,7 @@ final class HorseDatabase {
 
     List<HorseData> loadHorses() {
         Gson gson = new Gson();
-        List<HorseData> result = new ArrayList<>();
+        ArrayList<HorseData> result = new ArrayList<>();
         try {
             ResultSet row = getConnection().createStatement().executeQuery("SELECT * FROM `horses`");
             while (row.next()) {
@@ -91,5 +102,48 @@ final class HorseDatabase {
             sqle.printStackTrace();
         }
         return result;
+    }
+
+    boolean saveHorseBrand(HorseBrand brand) {
+        if (brand == null) throw new NullPointerException("brand cannot be null");
+        String sql = "INSERT INTO `brands` (created, owner, format) values (DATETIME('now'), ?, ?)";
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
+            statement.setString(1, brand.getOwner().toString());
+            statement.setString(2, brand.getFormat());
+            return 1 == statement.executeUpdate();
+        } catch (SQLException sqle) {
+            throw new IllegalStateException(sqle);
+        }
+    }
+
+    List<HorseBrand> loadHorseBrands() {
+        ArrayList<HorseBrand> result = new ArrayList<>();
+        try {
+            ResultSet row = getConnection().createStatement().executeQuery("SELECT * FROM `brands`");
+            while (row.next()) {
+                try {
+                    UUID owner = UUID.fromString(row.getString("owner"));
+                    String format = row.getString("format");
+                    HorseBrand horseBrand = new HorseBrand(owner, format);
+                    result.add(horseBrand);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        } catch (SQLException sqle) {
+            sqle.printStackTrace();
+        }
+        return result;
+    }
+
+    boolean deleteHorseBrand(UUID owner) {
+        if (owner == null) throw new NullPointerException("owner cannot be null");
+        String sql = "DELETE FROM `brands` WHERE owner = ?";
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
+            statement.setString(1, owner.toString());
+            return 1 == statement.executeUpdate();
+        } catch (SQLException sqle) {
+            throw new IllegalStateException(sqle);
+        }
     }
 }

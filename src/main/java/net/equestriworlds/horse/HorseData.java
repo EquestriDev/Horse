@@ -36,10 +36,11 @@ final class HorseData {
     private double jump, speed;
     // Access
     private HashSet<Equestrian> trusted = new HashSet<>();
-    // Entity
-    HorseLocation location; // optional
-    Breeding breeding; // optional
-    Grooming grooming; // optonal
+    // Optionals
+    HorseLocation location;
+    HorseBrand brand;
+    Breeding breeding;
+    Grooming grooming;
     Health health;
 
     @Data @AllArgsConstructor

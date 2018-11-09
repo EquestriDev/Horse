@@ -22,7 +22,7 @@ import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
 
 final class HorseCommand extends CommandBase implements TabExecutor {
-    public final List<String> commands = Arrays.asList("claim", "list", "here", "bring", "info", "follow", "unfollow", "trust", "untrust");
+    public final List<String> commands = Arrays.asList("claim", "list", "here", "bring", "info", "follow", "unfollow", "trust", "untrust", "registerbrand", "brandlist");
 
     HorseCommand(HorsePlugin plugin) {
         super(plugin);
@@ -38,7 +38,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         }
         Player player = (Player)sender;
         if (args.length == 0) {
-            new HorseGUI(this.plugin).open(player);
+            new HorseGUI(this.plugin).horseList(player).open(player);
             return true;
         }
         try {
@@ -154,6 +154,37 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             HorseEffects.unfriendJingle(this.plugin, player);
             return true;
         }
+        case "registerbrand": {
+            if (args.length < 1) return false;
+            if (null != this.plugin.getHorseBrands().get(player.getUniqueId())) throw new CommandException("You already have a brand.");
+            StringBuilder sb = new StringBuilder(args[0]);
+            for (int i = 1; i < args.length; i += 1) sb.append(" ").append(args[i]);
+            String format = ChatColor.translateAlternateColorCodes('&', sb.toString());
+            String formatNoColor = ChatColor.stripColor(format);
+            if (formatNoColor.length() > 6) throw new CommandException("This brand is too long.");
+            HorseBrand horseBrand = new HorseBrand(player.getUniqueId(), format);
+            // TODO: Economy: 250,000?
+            this.plugin.getDatabase().saveHorseBrand(horseBrand);
+            this.plugin.getHorseBrands().put(player.getUniqueId(), horseBrand);
+            return true;
+        }
+        case "brandlist": {
+            new HorseGUI(this.plugin).brandList(0).open(player);
+            return true;
+        }
+        case "brand": {
+            SpawnedHorse spawned = spawnedHorseOf(interactedHorseOf(player));
+            if (!spawned.data.isOwner(player)) throw new CommandException("This horse does not belong to you.");
+            HorseBrand horseBrand = this.plugin.getHorseBrands().get(player.getUniqueId());
+            if (horseBrand == null) throw new CommandException("You don't have a registered brand.");
+            if (spawned.data.getBrand() != null) throw new CommandException("This horse is already branded.");
+            if (spawned.data.getAge() != HorseAge.FOAL) throw new CommandException("You can only brand a foal.");
+            // TODO: Economy
+            spawned.data.setBrand(horseBrand);
+            this.plugin.getDatabase().updateHorse(spawned.data);
+            player.sendMessage(ChatColor.GOLD + spawned.data.getName() + " was branded with " + horseBrand.getFormat() + ChatColor.GOLD + ".");
+            return true;
+        }
         default: return false;
         }
     }
@@ -262,14 +293,19 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         ChatColor c = data.getGender().chatColor;
         ArrayList<BaseComponent> result = new ArrayList<>();
         result.add(new TextComponent("" + c + ChatColor.BOLD + data.getName()));
+        result.add(new TextComponent("\n"));
         result.add(new TextComponent("\nOwner " + c + (data.getOwner() == null ? "None" : data.getOwner().getName())));
         result.add(new TextComponent("\nGender " + c + data.getGender().humanName + " " + data.getGender().symbol));
         result.add(new TextComponent("\nAge " + c + data.getAge().humanName));
+        if (data.getBrand() != null) result.add(new TextComponent("\nBrand " + c + data.getBrand().getFormat()));
+        result.add(new TextComponent("\n"));
         result.add(new TextComponent("\nBreed " + c + data.getBreed().humanName));
         if (data.getColor() != null) result.add(new TextComponent("\nColor " + c + data.getColor().humanName));
         if (data.getMarkings() != null) result.add(new TextComponent("\nMarkings " + c + data.getMarkings().humanName));
+        result.add(new TextComponent("\n"));
         result.add(new TextComponent("\nJump " + c + String.format("%.2f", data.getJump()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks)", data.getJumpHeight())));
         result.add(new TextComponent("\nSpeed " + c + String.format("%.2f", data.getSpeed()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks/sec)", data.getSpeed() * 4.3)));
+        result.add(new TextComponent("\n"));
         if (!data.getTrusted().isEmpty()) {
             Iterator<HorseData.Equestrian> iter = data.getTrusted().iterator();
             StringBuilder sb = new StringBuilder(iter.next().getName());

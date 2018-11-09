@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import net.equestriworlds.horse.dirty.NBT;
@@ -49,6 +50,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     private HorseListener horseListener;
     private Gaits gaits;
     private List<String> horseNames;
+    private Map<UUID, HorseBrand> horseBrands;
     // --- Dirty
     private NBT dirtyNBT = new NBT();
     private Path dirtyPath = new Path();
@@ -62,18 +64,27 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     @Override
     public void onEnable() {
         saveResource("horse_names.json", false);
+        // Prepare and load database
         this.database = new HorseDatabase(this);
         this.database.createTables();
-        loadHorses();
+        this.horses = this.database.loadHorses();
+        spawnAllHorses();
+        this.horseBrands = new HashMap<>();
+        for (HorseBrand horseBrand: this.database.loadHorseBrands()) {
+            this.horseBrands.put(horseBrand.getOwner(), horseBrand);
+        }
+        // Initialize members
         this.horseListener = new HorseListener(this);
         this.horseCommand = new HorseCommand(this);
         this.adminCommand = new AdminCommand(this);
         this.editCommand = new EditCommand(this);
         this.gaits = new Gaits(this);
+        // Register events and commands
         getServer().getPluginManager().registerEvents(this.horseListener, this);
         getServer().getPluginManager().registerEvents(this.gaits, this);
         getCommand("horse").setExecutor(this.horseCommand);
         getCommand("horseadmin").setExecutor(this.adminCommand);
+        // Start tick timer
         getServer().getScheduler().runTaskTimer(this, this, 1L, 1L);
     }
 
@@ -104,11 +115,6 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     }
 
     // --- HorseData
-
-    void loadHorses() {
-        this.horses = this.database.loadHorses();
-        spawnAllHorses();
-    }
 
     List<AbstractHorse> spawnAllHorses() {
         List<AbstractHorse> result = new ArrayList<>();
@@ -329,5 +335,16 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         }
         this.dirtyPath.navigate(spawned.getEntity(), followedPlayer.getLocation(), speed);
         return true;
+    }
+
+    // --- Player Cache
+
+    // TODO: Actually cache something(?)
+    String cachedPlayerName(UUID uuid) {
+        return getServer().getOfflinePlayer(uuid).getName();
+    }
+
+    UUID cachedPlayerUuid(String name) {
+        return getServer().getOfflinePlayer(name).getUniqueId();
     }
 }

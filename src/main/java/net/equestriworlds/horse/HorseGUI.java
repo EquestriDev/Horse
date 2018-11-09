@@ -1,5 +1,6 @@
 package net.equestriworlds.horse;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +29,34 @@ final class HorseGUI implements InventoryHolder {
     private HashMap<Integer, Consumer<InventoryClickEvent>> clicks = new HashMap<>();
 
     InventoryView open(Player player) {
+        if (this.inventory == null) throw new NullPointerException("inventory cannot be null");
+        return player.openInventory(this.inventory);
+    }
+
+    void onOpen(InventoryOpenEvent event) {
+    }
+
+    void onClose(InventoryCloseEvent event) {
+    }
+
+    void onClick(InventoryClickEvent event) {
+        event.setCancelled(true);
+        if (event.getClickedInventory() == null) return;
+        if (!event.getClickedInventory().equals(this.inventory)) return;
+        int slot = event.getSlot();
+        Consumer<InventoryClickEvent> consumer = this.clicks.get(slot);
+        if (consumer == null) return;
+        Bukkit.getScheduler().runTask(this.plugin, () -> consumer.accept(event));
+    }
+
+    void onDrag(InventoryDragEvent event) {
+        event.setCancelled(true);
+    }
+
+    // --- Prepare specific
+
+    HorseGUI horseList(Player player) {
+        if (this.inventory != null) throw new IllegalStateException("inventory already initialized!");
         List<HorseData> horses = this.plugin.findHorses(player);
         this.inventory = Bukkit.getServer().createInventory(this, 3 * 9, "" + ChatColor.DARK_BLUE + ChatColor.BOLD + "Horse List" + ChatColor.DARK_GRAY + "(" + horses.size() + ")");
         int currentIndex = 0;
@@ -62,26 +91,27 @@ final class HorseGUI implements InventoryHolder {
                 });
             currentIndex += 1;
         }
-        return player.openInventory(this.inventory);
+        return this;
     }
 
-    void onOpen(InventoryOpenEvent event) {
-    }
-
-    void onClose(InventoryCloseEvent event) {
-    }
-
-    void onClick(InventoryClickEvent event) {
-        event.setCancelled(true);
-        if (event.getClickedInventory() == null) return;
-        if (!event.getClickedInventory().equals(this.inventory)) return;
-        int slot = event.getSlot();
-        Consumer<InventoryClickEvent> consumer = this.clicks.get(slot);
-        if (consumer == null) return;
-        Bukkit.getScheduler().runTask(this.plugin, () -> consumer.accept(event));
-    }
-
-    void onDrag(InventoryDragEvent event) {
-        event.setCancelled(true);
+    HorseGUI brandList(int page) {
+        ArrayList<HorseBrand> brands = new ArrayList<>(this.plugin.getHorseBrands().values());
+        this.inventory = Bukkit.getServer().createInventory(this, 4 * 9, "" + ChatColor.DARK_RED + ChatColor.BOLD + "Brand List" + ChatColor.DARK_GRAY + "(" + brands.size() + ")");
+        int pageSize = 3 * 9;
+        int startIndex = pageSize * page;
+        for (int i = 0; i < pageSize; i += 1) {
+            int index = startIndex + i;
+            if (i >= brands.size()) break;
+            HorseBrand horseBrand = brands.get(index);
+            long brandedHorses = this.plugin.getHorses().stream().filter(h -> horseBrand.equals(h.getBrand())).count();
+            ItemStack item = new ItemStack(Material.SIGN);
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(horseBrand.getFormat());
+            meta.setLore(Arrays.asList(ChatColor.GRAY + "Owner " + ChatColor.WHITE + this.plugin.cachedPlayerName(horseBrand.getOwner()),
+                                       ChatColor.GRAY + "Horses " + ChatColor.WHITE + brandedHorses));
+            item.setItemMeta(meta);
+            inventory.setItem(i, item);
+        }
+        return this;
     }
 }
