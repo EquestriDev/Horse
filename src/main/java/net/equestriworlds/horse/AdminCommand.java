@@ -41,7 +41,34 @@ final class AdminCommand extends CommandBase implements TabExecutor {
         case "new": {
             return this.plugin.getEditCommand().newSession(expectPlayer(sender));
         }
-        default: return false;
+        case "navigate": {
+            if (args.length != 1 && args.length != 2) return false;
+            Player player = expectPlayer(sender);
+            HorseData data = horseWithId(args[0]);
+            SpawnedHorse spawned = spawnedHorseOf(data);
+            double speed = args.length < 2 ? 1.0 : expectDouble(args[1]);
+            this.plugin.getDirtyPath().navigate(spawned.getEntity(), player.getLocation(), speed);
+            player.sendMessage("Horse " + data.getName() + " navigating to you.");
+            return true;
+        }
+        case "move": {
+            if (args.length != 1 && args.length != 2) return false;
+            Player player = expectPlayer(sender);
+            HorseData data = horseWithId(args[0]);
+            SpawnedHorse spawned = spawnedHorseOf(data);
+            double speed = args.length < 2 ? 1.0 : expectDouble(args[1]);
+            this.plugin.getDirtyPath().moveTowards(spawned.getEntity(), player.getLocation(), speed);
+            player.sendMessage("Horse " + data.getName() + " moving to you.");
+            return true;
+        }
+        case "info": {
+            if (args.length != 1) return false;
+            HorseData data = horseWithId(args[0]);
+            sender.sendMessage("" + data);
+            return true;
+        }
+        default:
+            return false;
         }
     }
 

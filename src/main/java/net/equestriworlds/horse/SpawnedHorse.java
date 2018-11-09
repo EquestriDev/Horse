@@ -1,5 +1,6 @@
 package net.equestriworlds.horse;
 
+import java.util.UUID;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -12,6 +13,8 @@ import org.bukkit.entity.AbstractHorse;
 final class SpawnedHorse {
     public final HorseData data;
     AbstractHorse entity;
+    long ticksLived;
+    UUID following;
 
     void despawn() {
         if (entity == null) return;

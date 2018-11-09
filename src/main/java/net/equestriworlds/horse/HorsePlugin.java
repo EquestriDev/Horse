@@ -6,11 +6,14 @@ import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import lombok.Getter;
+import net.equestriworlds.horse.dirty.NBT;
+import net.equestriworlds.horse.dirty.Path;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -30,7 +33,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  * - Get the HorseData from it.
  */
 @Getter
-public final class HorsePlugin extends JavaPlugin {
+public final class HorsePlugin extends JavaPlugin implements Runnable {
     // --- Constants
     public static final String SCOREBOARD_MARKER = "equestriworlds.horse";
     // --- Horse Data
@@ -46,6 +49,9 @@ public final class HorsePlugin extends JavaPlugin {
     private HorseListener horseListener;
     private Gaits gaits;
     private List<String> horseNames;
+    // --- Dirty
+    private NBT dirtyNBT = new NBT();
+    private Path dirtyPath = new Path();
 
     // --- JavaPlugin
 
@@ -68,6 +74,7 @@ public final class HorsePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(this.gaits, this);
         getCommand("horse").setExecutor(this.horseCommand);
         getCommand("horseadmin").setExecutor(this.adminCommand);
+        getServer().getScheduler().runTaskTimer(this, this, 1L, 1L);
     }
 
     /**
@@ -277,5 +284,50 @@ public final class HorsePlugin extends JavaPlugin {
         List<String> names = getHorseNames();
         if (names == null || names.isEmpty()) return "X";
         return names.get(random.nextInt(names.size()));
+    }
+
+    // --- Horse Ticking
+
+    @Override
+    public void run() {
+        for (Iterator<SpawnedHorse> iter = this.spawnedHorses.iterator(); iter.hasNext();) {
+            if (!iter.next().isPresent()) iter.remove();
+        }
+        for (SpawnedHorse spawned: new ArrayList<>(this.spawnedHorses)) {
+            tickSpawnedHorse(spawned);
+        }
+    }
+
+    private void tickSpawnedHorse(SpawnedHorse spawned) {
+        long ticksLived = spawned.getTicksLived();
+        spawned.setTicksLived(ticksLived + 1);
+        if ((ticksLived % 10) == 0 && spawned.getFollowing() != null) {
+            if (!followHorse(spawned)) spawned.setFollowing(null);
+        }
+    }
+
+    private boolean followHorse(SpawnedHorse spawned) {
+        Player followedPlayer = getServer().getPlayer(spawned.getFollowing());
+        if (followedPlayer == null) {
+            return false;
+        }
+        Location followLocation = followedPlayer.getLocation();
+        Location horseLocation = spawned.getEntity().getLocation();
+        if (!followLocation.getWorld().equals(horseLocation.getWorld())) return false;
+        double distanceSquared = followLocation.distanceSquared(horseLocation);
+        if (distanceSquared > 128.0 * 128.0) return false;
+        if (distanceSquared < 4.0) return true;
+        double speed;
+        if (distanceSquared > 32.0 * 32.0) {
+            speed = 2.25;
+        } else if (distanceSquared > 16.0 * 16.0) {
+            speed = 2.0;
+        } else if (distanceSquared > 8.0 * 8.0) {
+            speed = 1.75;
+        } else {
+            speed = 1.5;
+        }
+        this.dirtyPath.navigate(spawned.getEntity(), followedPlayer.getLocation(), speed);
+        return true;
     }
 }

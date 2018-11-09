@@ -19,6 +19,7 @@ import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.spigotmc.event.entity.EntityDismountEvent;
+import org.spigotmc.event.entity.EntityMountEvent;
 
 /**
  * This class listens for various horse related events on behalf of
@@ -93,6 +94,20 @@ final class HorseListener implements Listener {
         spawned.data.storeLocation(entity.getLocation());
         // TODO: inventory
         this.plugin.getDatabase().updateHorse(spawned.data);
+    }
+
+    /**
+     * On horse mount, store location and stop following.
+     */
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+    public void onEntityMount(EntityMountEvent event) {
+        if (!(event.getMount() instanceof AbstractHorse)) return;
+        AbstractHorse entity = (AbstractHorse)event.getMount();
+        SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
+        if (spawned == null) return;
+        spawned.data.storeLocation(entity.getLocation());
+        this.plugin.getDatabase().updateHorse(spawned.data);
+        spawned.setFollowing(null);
     }
 
     /**

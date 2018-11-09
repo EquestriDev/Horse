@@ -3,12 +3,16 @@ package net.equestriworlds.horse;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -16,7 +20,7 @@ import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
 
 final class HorseCommand extends CommandBase implements TabExecutor {
-    public static final List<String> COMMANDS = Arrays.asList("claim", "list", "here", "bring", "info");
+    public final List<String> commands = Arrays.asList("claim", "list", "here", "bring", "info", "follow", "unfollow");
 
     HorseCommand(HorsePlugin plugin) {
         super(plugin);
@@ -88,6 +92,33 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             }
             return true;
         }
+        case "follow": {
+            if (args.length != 0) return false;
+            UUID playerId = player.getUniqueId();
+            for (SpawnedHorse spawned: nearbyAccessibleHorsesOf(player)) {
+                spawned.setFollowing(playerId);
+                player.sendMessage(ChatColor.GOLD + spawned.data.getName() + " is now following you.");
+                player.playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_AMBIENT, SoundCategory.NEUTRAL, 0.5f, 1.0f);
+                player.spawnParticle(Particle.VILLAGER_HAPPY, spawned.getEntity().getEyeLocation(), 8, 0.5, 0.5, 0.5, 0.0);
+            }
+            return true;
+        }
+        case "unfollow": {
+            if (args.length != 0) return false;
+            UUID playerId = player.getUniqueId();
+            int unfollowed = 0;
+            for (SpawnedHorse spawned: nearbyAccessibleHorsesOf(player)) {
+                if (playerId.equals(spawned.getFollowing())) {
+                    spawned.setFollowing(null);
+                    unfollowed += 1;
+                    player.sendMessage(ChatColor.YELLOW + spawned.data.getName() + " is no longer following you.");
+                    player.playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_ANGRY, SoundCategory.NEUTRAL, 0.5f, 1.0f);
+                    player.spawnParticle(Particle.VILLAGER_ANGRY, spawned.getEntity().getEyeLocation(), 4, 0.5, 0.5, 0.5, 0.0);
+                }
+            }
+            if (unfollowed == 0) throw new CommandException("No nearby horse is following you.");
+            return true;
+        }
         default: return false;
         }
     }
@@ -111,7 +142,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         if (!(sender instanceof Player)) return null;
         Player player = (Player)sender;
         String arg = args.length == 0 ? "" : args[args.length - 1];
-        if (args.length <= 1) return tabComplete(args[0], COMMANDS);
+        if (args.length <= 1) return tabComplete(args[0], this.commands);
         switch (args[0]) {
         case "claim":
             return Collections.emptyList();

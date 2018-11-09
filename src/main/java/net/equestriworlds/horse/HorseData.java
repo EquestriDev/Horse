@@ -213,4 +213,11 @@ final class HorseData {
     Object randomize(HorsePlugin plugin, String field) {
         return randomize(plugin, field, ThreadLocalRandom.current());
     }
+
+    // --- Access
+
+    boolean canAccess(UUID playerId) {
+        if (this.owner != null && this.owner.uuid.equals(playerId)) return true;
+        return this.trusted.contains(playerId);
+    }
 }

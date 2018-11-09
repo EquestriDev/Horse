@@ -1,6 +1,8 @@
 package net.equestriworlds.horse;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -96,6 +98,12 @@ abstract class CommandBase {
         return spawned;
     }
 
+    SpawnedHorse spawnedHorseOf(HorseData data) throws CommandException {
+        SpawnedHorse spawned = this.plugin.findSpawnedHorse(data);
+        if (spawned == null || !spawned.isPresent()) throw new CommandException("Horse is not spawned.");
+        return spawned;
+    }
+
     String horseNameOf(HorseData data, String[] args) throws CommandException {
         final String name;
         if (args.length != 0) {
@@ -153,11 +161,42 @@ abstract class CommandBase {
         }
     }
 
+    double expectDouble(String arg) throws CommandException {
+        try {
+            return Double.parseDouble(arg);
+        } catch (NumberFormatException nfe) {
+            throw new CommandException("Not a number: " + arg);
+        }
+    }
+
     HorseData horseWithId(String arg) throws CommandException {
         int id = expectInt(arg);
         if (id < 0) throw new CommandException("Positive number expected: " + id);
         HorseData data = this.plugin.findHorse(id);
         if (data == null) throw new CommandException("Horse not found: " + id);
         return data;
+    }
+
+    List<SpawnedHorse> nearbyAccessibleHorsesOf(Player player) throws CommandException {
+        ArrayList<SpawnedHorse> result = new ArrayList<>();
+        int anyNearby = 0;
+        UUID playerId = player.getUniqueId();
+        for (Entity e: player.getNearbyEntities(10.0, 10.0, 10.0)) {
+            if (!(e instanceof AbstractHorse)) continue;
+            anyNearby += 1;
+            AbstractHorse entity = (AbstractHorse)e;
+            SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
+            if (spawned == null) continue;
+            if (!spawned.data.canAccess(playerId)) continue;
+            result.add(spawned);
+        }
+        if (result.isEmpty()) {
+            if (anyNearby > 0) {
+                throw new CommandException("No nearby horse listens to you.");
+            } else {
+                throw new CommandException("No horse nearby.");
+            }
+        }
+        return result;
     }
 }
