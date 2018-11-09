@@ -199,4 +199,10 @@ abstract class CommandBase {
         }
         return result;
     }
+
+    Player playerWithName(String arg) throws CommandException {
+        Player result = this.plugin.getServer().getPlayerExact(arg);
+        if (result == null) throw new CommandException("Player not found: " + arg + ".");
+        return result;
+    }
 }

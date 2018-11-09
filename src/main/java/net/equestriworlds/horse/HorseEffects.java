@@ -54,4 +54,46 @@ final class HorseEffects {
             }
         }.runTaskTimer(plugin, 1, 1);
     }
+
+    static void friendJingle(HorsePlugin plugin, final Player player) {
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override public void run() {
+                if (!player.isValid()) {
+                    cancel();
+                    return;
+                }
+                switch (tick) {
+                case 0: player.playSound(player.getEyeLocation(), Sound.BLOCK_NOTE_GUITAR, SoundCategory.MASTER, 0.5f, 0.9f); break;
+                case 1: player.playSound(player.getEyeLocation(), Sound.BLOCK_NOTE_GUITAR, SoundCategory.MASTER, 0.5f, 0.95f); break;
+                case 2: player.playSound(player.getEyeLocation(), Sound.BLOCK_NOTE_GUITAR, SoundCategory.MASTER, 0.5f, 1.05f); break;
+                default:
+                    cancel();
+                    return;
+                }
+                tick += 1;
+            }
+        }.runTaskTimer(plugin, 0L, 3L);
+    }
+
+    static void unfriendJingle(HorsePlugin plugin, final Player player) {
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override public void run() {
+                if (!player.isValid()) {
+                    cancel();
+                    return;
+                }
+                switch (tick) {
+                case 0: player.playSound(player.getEyeLocation(), Sound.BLOCK_NOTE_GUITAR, SoundCategory.MASTER, 0.5f, 1.0f); break;
+                case 1: player.playSound(player.getEyeLocation(), Sound.BLOCK_NOTE_GUITAR, SoundCategory.MASTER, 0.5f, 0.9f); break;
+                case 2: player.playSound(player.getEyeLocation(), Sound.BLOCK_NOTE_GUITAR, SoundCategory.MASTER, 0.5f, 0.5f); break;
+                default:
+                    cancel();
+                    return;
+                }
+                tick += 1;
+            }
+        }.runTaskTimer(plugin, 0L, 3L);
+    }
 }

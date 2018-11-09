@@ -35,7 +35,7 @@ final class HorseData {
     private HorseMarkings markings;
     private double jump, speed;
     // Access
-    private HashSet<UUID> trusted = new HashSet<>();
+    private HashSet<Equestrian> trusted = new HashSet<>();
     // Entity
     HorseLocation location; // optional
     Breeding breeding; // optional
@@ -218,6 +218,13 @@ final class HorseData {
 
     boolean canAccess(UUID playerId) {
         if (this.owner != null && this.owner.uuid.equals(playerId)) return true;
-        return this.trusted.contains(playerId);
+        for (Equestrian trustee: this.trusted) {
+            if (trustee.uuid.equals(playerId)) return true;
+        }
+        return false;
+    }
+
+    boolean canAccess(Player player) {
+        return canAccess(player.getUniqueId());
     }
 }

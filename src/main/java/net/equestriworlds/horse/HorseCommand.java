@@ -2,6 +2,7 @@ package net.equestriworlds.horse;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import net.md_5.bungee.api.ChatColor;
@@ -20,7 +21,7 @@ import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
 
 final class HorseCommand extends CommandBase implements TabExecutor {
-    public final List<String> commands = Arrays.asList("claim", "list", "here", "bring", "info", "follow", "unfollow");
+    public final List<String> commands = Arrays.asList("claim", "list", "here", "bring", "info", "follow", "unfollow", "trust", "untrust");
 
     HorseCommand(HorsePlugin plugin) {
         super(plugin);
@@ -119,6 +120,39 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             if (unfollowed == 0) throw new CommandException("No nearby horse is following you.");
             return true;
         }
+        case "trust": {
+            if (args.length != 1) return false;
+            SpawnedHorse spawned = spawnedHorseOf(interactedHorseOf(player));
+            if (!spawned.data.isOwner(player)) throw new CommandException("You do not own " + spawned.data.getName() + ".");
+            Player target = playerWithName(args[0]);
+            if (spawned.data.canAccess(target)) throw new CommandException(target.getName() + " can already access " + spawned.data.getName() + ".");
+            spawned.data.getTrusted().add(new HorseData.Equestrian(target.getUniqueId(), target.getName()));
+            this.plugin.getDatabase().updateHorse(spawned.data);
+            player.sendMessage(ChatColor.GOLD + "Trusted " + target.getName() + " to access " + spawned.data.getName() + ".");
+            target.sendMessage(ChatColor.GOLD + player.getName() + " trusted you to access their horse " + spawned.data.getName() + ".");
+            HorseEffects.friendJingle(this.plugin, player);
+            HorseEffects.friendJingle(this.plugin, target);
+            return true;
+        }
+        case "untrust": {
+            if (args.length != 1) return false;
+            SpawnedHorse spawned = spawnedHorseOf(interactedHorseOf(player));
+            if (!spawned.data.isOwner(player)) throw new CommandException("You do not own " + spawned.data.getName() + ".");
+            HorseData.Equestrian revokee = null;
+            for (Iterator<HorseData.Equestrian> iter = spawned.data.getTrusted().iterator(); iter.hasNext();) {
+                HorseData.Equestrian trustee = iter.next();
+                if (trustee.getName().equalsIgnoreCase(args[0])) {
+                    iter.remove();
+                    revokee = trustee;
+                    break;
+                }
+            }
+            if (revokee == null) throw new CommandException(args[0] + " is not trusted to use " + spawned.data.getName() + ".");
+            this.plugin.getDatabase().updateHorse(spawned.data);
+            player.sendMessage(ChatColor.YELLOW + "Removed trust for " + revokee.getName() + " from " + spawned.data.getName() + ".");
+            HorseEffects.unfriendJingle(this.plugin, player);
+            return true;
+        }
         default: return false;
         }
     }
@@ -151,6 +185,17 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         case "bring":
             if (args.length == 2) return tabComplete(args[0], this.plugin.findHorses(player).stream().map(HorseData::getName).map(String::toLowerCase));
             return null;
+        case "trust":
+            if (args.length == 2) return null;
+            return Collections.emptyList();
+        case "untrust": {
+            if (args.length == 2) {
+                try {
+                    return tabComplete(args[1], spawnedHorseOf(interactedHorseOf(player)).data.getTrusted().stream().map(HorseData.Equestrian::getName));
+                } catch (Exception e) { }
+            }
+            return Collections.emptyList();
+        }
         default:
             return Collections.emptyList();
         }
