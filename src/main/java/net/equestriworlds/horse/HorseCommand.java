@@ -1,5 +1,6 @@
 package net.equestriworlds.horse;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -159,7 +160,12 @@ final class HorseCommand extends CommandBase implements TabExecutor {
 
     void sendHorseInfo(Player player, HorseData data) {
             player.sendMessage("");
-            player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Horse Information");
+            player.sendMessage(""
+                               + ChatColor.YELLOW + ChatColor.STRIKETHROUGH + "            "
+                               + ChatColor.YELLOW + "[ "
+                               + ChatColor.GOLD + ChatColor.BOLD + "Horse Info"
+                               + ChatColor.YELLOW + " ]"
+                               + ChatColor.YELLOW + ChatColor.STRIKETHROUGH + "            ");
             player.spigot().sendMessage(describeHorse(data));
             player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + data.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + data.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + data.getName() + " here."))).create());
             player.sendMessage("");
@@ -244,7 +250,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         int horseIndex = 0;
         for (HorseData data: playerHorses) {
             horseIndex += 1;
-            player.spigot().sendMessage(new ComponentBuilder("\u2022 ").append(data.getName()).color(chatColorOf(data)).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse info " + horseIndex)).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, describeHorse(data))).create());
+            player.spigot().sendMessage(new ComponentBuilder("\u2022 ").append(data.getName()).color(data.getGender().chatColor).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse info " + horseIndex)).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, describeHorse(data))).create());
         }
     }
 
@@ -252,30 +258,24 @@ final class HorseCommand extends CommandBase implements TabExecutor {
      * Return all the properties of a horse which we will show to
      * players. Used for tooltips and the info command.
      */
-    BaseComponent[] describeHorse(HorseData horse) {
-        ChatColor c = chatColorOf(horse);
-        return new BaseComponent[] {
-            new TextComponent("" + c + ChatColor.BOLD + horse.getName()),
-            new TextComponent("\nOwner " + ChatColor.GRAY + horse.getOwner() == null ? "None" : horse.getOwner().getName()),
-            new TextComponent("\nJump " + ChatColor.GRAY + String.format("%.2f", horse.getJump())),
-            new TextComponent("\nSpeed " + ChatColor.GRAY + String.format("%.2f", horse.getSpeed())),
-            new TextComponent("\nColor " + c + horse.getColor().humanName),
-            new TextComponent("\nMarkings " + ChatColor.GRAY + horse.getMarkings().humanName),
-            new TextComponent("\nAge " + ChatColor.GRAY + horse.getAge().humanName)
-        };
-    }
-
-    // --- Utility
-
-    /**
-     * Get the approximate ChatColor which represents this horse
-     * color.
-     */
-    static ChatColor chatColorOf(HorseData data) {
-        switch (data.getGender()) {
-        case MARE: return ChatColor.LIGHT_PURPLE;
-        case STALLION: return ChatColor.BLUE;
-        case GELDING: default: return ChatColor.GREEN;
+    BaseComponent[] describeHorse(HorseData data) {
+        ChatColor c = data.getGender().chatColor;
+        ArrayList<BaseComponent> result = new ArrayList<>();
+        result.add(new TextComponent("" + c + ChatColor.BOLD + data.getName()));
+        result.add(new TextComponent("\nOwner " + c + (data.getOwner() == null ? "None" : data.getOwner().getName())));
+        result.add(new TextComponent("\nGender " + c + data.getGender().humanName + " " + data.getGender().symbol));
+        result.add(new TextComponent("\nAge " + c + data.getAge().humanName));
+        result.add(new TextComponent("\nBreed " + c + data.getBreed().humanName));
+        if (data.getColor() != null) result.add(new TextComponent("\nColor " + c + data.getColor().humanName));
+        if (data.getMarkings() != null) result.add(new TextComponent("\nMarkings " + c + data.getMarkings().humanName));
+        result.add(new TextComponent("\nJump " + c + String.format("%.2f", data.getJump()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks)", data.getJumpHeight())));
+        result.add(new TextComponent("\nSpeed " + c + String.format("%.2f", data.getSpeed()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks/sec)", data.getSpeed() * 4.3)));
+        if (!data.getTrusted().isEmpty()) {
+            Iterator<HorseData.Equestrian> iter = data.getTrusted().iterator();
+            StringBuilder sb = new StringBuilder(iter.next().getName());
+            while (iter.hasNext()) sb.append(", ").append(iter.next().getName());
+            result.add(new TextComponent("\nTrusted " + ChatColor.GRAY + sb.toString()));
         }
+        return result.toArray(new BaseComponent[0]);
     }
 }

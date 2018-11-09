@@ -127,7 +127,7 @@ final class HorseData {
     }
 
     void applyProperties(AbstractHorse horse) {
-        horse.setCustomName(this.name + " " + this.gender.color + this.gender.symbol);
+        horse.setCustomName(this.name + " " + this.gender.chatColor + this.gender.symbol);
         if (horse instanceof Horse) {
             ((Horse)horse).setColor(this.color.bukkitColor);
             ((Horse)horse).setStyle(this.markings.bukkitStyle);

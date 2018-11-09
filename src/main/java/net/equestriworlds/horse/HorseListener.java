@@ -1,7 +1,12 @@
 package net.equestriworlds.horse;
 
 import lombok.RequiredArgsConstructor;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -139,12 +144,24 @@ final class HorseListener implements Listener {
 
     /**
      * Same as above, but for right clicks.
+     * Furthermore, check permission.
      */
     @EventHandler(ignoreCancelled = false, priority = EventPriority.LOWEST)
     public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof AbstractHorse)) return;
         AbstractHorse entity  = (AbstractHorse)event.getRightClicked();
         SpawnedHorse spawned = checkHorseEntityForValidity(entity);
+        if (spawned == null) return;
+        Player player = event.getPlayer();
+        if (!spawned.data.canAccess(player)) {
+            event.setCancelled(true);
+            // Feedback
+            player.playSound(player.getEyeLocation(), Sound.ENTITY_HORSE_ANGRY, SoundCategory.NEUTRAL, 0.5f, 1.0f);
+            player.spawnParticle(Particle.VILLAGER_ANGRY, entity.getEyeLocation(), 1, 0.25, 0.25, 0.25, 0.0);
+            // Fix orientation
+            final Location location = player.getLocation();
+            Bukkit.getScheduler().runTask(this.plugin, () -> player.teleport(location));
+        }
     }
 
     /**

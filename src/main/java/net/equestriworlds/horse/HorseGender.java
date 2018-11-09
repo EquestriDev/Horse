@@ -5,18 +5,18 @@ import net.md_5.bungee.api.ChatColor;
 
 @Getter
 enum HorseGender implements HumanReadable {
-    MARE("\u2640", ChatColor.BLUE),
-    STALLION("\u2642", ChatColor.LIGHT_PURPLE),
+    MARE("\u2640", ChatColor.LIGHT_PURPLE),
+    STALLION("\u2642", ChatColor.BLUE),
     GELDING("\u26b2", ChatColor.GREEN);
 
     public final String humanName;
     public final String symbol;
-    public final ChatColor color;
+    public final ChatColor chatColor;
 
-    HorseGender(String symbol, ChatColor color) {
+    HorseGender(String symbol, ChatColor chatColor) {
         this.humanName = HumanReadable.enumToHuman(this);
         this.symbol = symbol;
-        this.color = color;
+        this.chatColor = chatColor;
     }
 
     boolean isFemale() {

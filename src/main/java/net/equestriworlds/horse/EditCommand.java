@@ -293,7 +293,7 @@ final class EditCommand extends CommandBase {
             } else if (field == this.gender) {
                 cb.append(" ").reset();
                 HorseGender horseGender = (HorseGender)o;
-                cb.append(horseGender.symbol).color(horseGender.color);
+                cb.append(horseGender.symbol).color(horseGender.chatColor);
             }
             player.spigot().sendMessage(cb.create());
             cb = null;
