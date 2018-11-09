@@ -32,7 +32,6 @@ final class HorseGUI implements InventoryHolder {
         this.inventory = Bukkit.getServer().createInventory(this, 3 * 9, "" + ChatColor.DARK_BLUE + ChatColor.BOLD + "Horse List" + ChatColor.DARK_GRAY + "(" + horses.size() + ")");
         int currentIndex = 0;
         for (HorseData data: horses) {
-            System.out.println("horse loop: " + data);
             ItemStack icon;
             switch (data.getGender()) {
             case STALLION: icon = new ItemStack(Material.INK_SACK, 1, (short)12); break;
