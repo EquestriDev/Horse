@@ -1,14 +1,12 @@
 package net.equestriworlds.horse;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
-import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
 
 final class AdminCommand extends CommandBase implements TabExecutor {
@@ -75,7 +73,8 @@ final class AdminCommand extends CommandBase implements TabExecutor {
             HorseBrand horseBrand = this.plugin.getHorseBrands().remove(ownerId);
             if (horseBrand == null) throw new CommandException(name + " does not have a brand.");
             this.plugin.getDatabase().deleteHorseBrand(horseBrand.getOwner());
-            sender.sendMessage("Horse brand deleted: " + horseBrand.getFormat() + ChatColor.RESET + ".");
+            sender.sendMessage("Horse brand of " + name + " deleted: " + horseBrand.getFormat() + ChatColor.RESET + ".");
+            return true;
         }
         default:
             return false;

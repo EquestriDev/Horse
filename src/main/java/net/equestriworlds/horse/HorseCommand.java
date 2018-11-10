@@ -37,10 +37,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             return true;
         }
         Player player = (Player)sender;
-        if (args.length == 0) {
-            new HorseGUI(this.plugin).horseList(player).open(player);
-            return true;
-        }
+        if (args.length == 0) return false;
         try {
             return onCommand(player, args[0], Arrays.copyOfRange(args, 1, args.length));
         } catch (CommandException cex) {
@@ -51,6 +48,10 @@ final class HorseCommand extends CommandBase implements TabExecutor {
 
     private boolean onCommand(Player player, String cmd, String[] args) throws CommandException {
         switch (cmd) {
+        case "list": case "l": {
+            new HorseGUI(this.plugin).horseList(player).open(player);
+            return true;
+        }
         case "claim": case "c": {
             AbstractHorse entity = this.interactedHorseOf(player);
             SpawnedHorse spawned = this.spawnedHorseOf(entity);
@@ -83,15 +84,6 @@ final class HorseCommand extends CommandBase implements TabExecutor {
                 data = this.ownedHorseOf(player, args);
             }
             sendHorseInfo(player, data);
-            return true;
-        }
-        case "list": case "l": {
-            if (args.length == 1) {
-                player.sendMessage("");
-                showHorseList(player, this.plugin.findHorses(player));
-                player.sendMessage("");
-                return true;
-            }
             return true;
         }
         case "follow": {
@@ -163,26 +155,37 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             String formatNoColor = ChatColor.stripColor(format);
             if (formatNoColor.length() > 6) throw new CommandException("This brand is too long.");
             HorseBrand horseBrand = new HorseBrand(player.getUniqueId(), format);
-            // TODO: Economy: 250,000?
+            double price = this.plugin.getConfig().getDouble("brands.RegistrationPrice", 250000.0);
+            String priceFormat = this.plugin.formatMoney(price);
+            if (!this.plugin.takePlayerMoney(player, price)) throw new CommandException("You cannot afford " + priceFormat + ".");
             this.plugin.getDatabase().saveHorseBrand(horseBrand);
             this.plugin.getHorseBrands().put(player.getUniqueId(), horseBrand);
+            player.sendMessage(ChatColor.GOLD + "You have registered the brand " + ChatColor.RESET + format + ChatColor.RESET + ChatColor.GOLD + " for " + ChatColor.YELLOW + ChatColor.ITALIC + priceFormat + ChatColor.RESET + ChatColor.GOLD + ".");
+            player.playSound(player.getEyeLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, SoundCategory.MASTER, 0.5f, 1.0f);
             return true;
         }
         case "brandlist": {
+            if (args.length != 0) return false;
             new HorseGUI(this.plugin).brandList(0).open(player);
             return true;
         }
         case "brand": {
+            if (args.length != 0) return false;
             SpawnedHorse spawned = spawnedHorseOf(interactedHorseOf(player));
             if (!spawned.data.isOwner(player)) throw new CommandException("This horse does not belong to you.");
             HorseBrand horseBrand = this.plugin.getHorseBrands().get(player.getUniqueId());
             if (horseBrand == null) throw new CommandException("You don't have a registered brand.");
             if (spawned.data.getBrand() != null) throw new CommandException("This horse is already branded.");
             if (spawned.data.getAge() != HorseAge.FOAL) throw new CommandException("You can only brand a foal.");
-            // TODO: Economy
+            double price = this.plugin.getConfig().getDouble("brands.ApplicationPrice", 10000.0);
+            String priceFormat = this.plugin.formatMoney(price);
+            if (!this.plugin.takePlayerMoney(player, price)) throw new CommandException("You cannot afford " + priceFormat + ".");
             spawned.data.setBrand(horseBrand);
             this.plugin.getDatabase().updateHorse(spawned.data);
-            player.sendMessage(ChatColor.GOLD + spawned.data.getName() + " was branded with " + horseBrand.getFormat() + ChatColor.GOLD + ".");
+            player.sendMessage(ChatColor.GOLD + spawned.data.getName() + " was branded with " + ChatColor.RESET + horseBrand.getFormat() + ChatColor.RESET + ChatColor.GOLD + " for " + ChatColor.YELLOW + ChatColor.ITALIC + priceFormat + ChatColor.RESET + ChatColor.GOLD + ".");
+            player.playSound(spawned.getEntity().getEyeLocation(), Sound.BLOCK_FIRE_EXTINGUISH, SoundCategory.NEUTRAL, 0.5f, 1.0f);
+            player.playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_HURT, SoundCategory.NEUTRAL, 0.5f, 1.0f);
+            player.spawnParticle(Particle.LAVA, spawned.getEntity().getLocation(), 32, 0.25, 0.0, 0.25, 0.0);
             return true;
         }
         default: return false;
@@ -197,7 +200,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
                                + ChatColor.GOLD + ChatColor.BOLD + "Horse Info"
                                + ChatColor.YELLOW + " ]"
                                + ChatColor.YELLOW + ChatColor.STRIKETHROUGH + "            ");
-            player.spigot().sendMessage(describeHorse(data));
+            for (BaseComponent bc: this.describeHorse(data)) player.spigot().sendMessage(bc);
             player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + data.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + data.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + data.getName() + " here."))).create());
             player.sendMessage("");
     }
@@ -240,78 +243,36 @@ final class HorseCommand extends CommandBase implements TabExecutor {
 
     // --- Helpers
 
-    boolean showHorseList(Player player) {
-        List<HorseData> list = this.plugin.findHorses(player);
-        if (list.isEmpty()) {
-            return false;
-        } else {
-            player.sendMessage("");
-            showHorseList(player, list);
-            player.sendMessage("");
-            return true;
-        }
-    }
-
-    /**
-     * Show a list of horses to some player; they are assumed to
-     * belong to the player.
-     */
-    void showHorseList(Player player, List<HorseData> playerHorses) {
-        if (playerHorses.size() == 0) {
-            player.sendMessage(ChatColor.RED + "You have no horses claimed.");
-            return;
-        }
-        String nu;
-        switch (playerHorses.size()) {
-        case 1: nu = "one horse"; break;
-        case 2: nu = "two horses"; break;
-        case 3: nu = "three horses"; break;
-        case 4: nu = "four horses"; break;
-        case 5: nu = "five horses"; break;
-        case 6: nu = "six horses"; break;
-        case 7: nu = "seven horses"; break;
-        case 8: nu = "eight horses"; break;
-        case 9: nu = "nine horses"; break;
-        case 10: nu = "ten horses"; break;
-        case 11: nu = "eleven horses"; break;
-        case 12: nu = "twelve horses"; break;
-        default: nu = "" + playerHorses.size() + " horses";
-        }
-        player.sendMessage("" + ChatColor.GREEN + ChatColor.BOLD + "Your have " + nu + ". " + ChatColor.GRAY + ChatColor.ITALIC + "Click for more info.");
-        int horseIndex = 0;
-        for (HorseData data: playerHorses) {
-            horseIndex += 1;
-            player.spigot().sendMessage(new ComponentBuilder("\u2022 ").append(data.getName()).color(data.getGender().chatColor).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse info " + horseIndex)).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, describeHorse(data))).create());
-        }
-    }
-
     /**
      * Return all the properties of a horse which we will show to
      * players. Used for tooltips and the info command.
+     *
+     * Used by `/h info` and HorseGUI#horseList(Player).
      */
-    BaseComponent[] describeHorse(HorseData data) {
-        ChatColor c = data.getGender().chatColor;
+    List<BaseComponent> describeHorse(HorseData data) {
+        String c = "" + data.getGender().chatColor;
+        String d = "" + ChatColor.GRAY + ChatColor.ITALIC;
         ArrayList<BaseComponent> result = new ArrayList<>();
-        result.add(new TextComponent("" + c + ChatColor.BOLD + data.getName()));
-        result.add(new TextComponent("\n"));
-        result.add(new TextComponent("\nOwner " + c + (data.getOwner() == null ? "None" : data.getOwner().getName())));
-        result.add(new TextComponent("\nGender " + c + data.getGender().humanName + " " + data.getGender().symbol));
-        result.add(new TextComponent("\nAge " + c + data.getAge().humanName));
-        if (data.getBrand() != null) result.add(new TextComponent("\nBrand " + c + data.getBrand().getFormat()));
-        result.add(new TextComponent("\n"));
-        result.add(new TextComponent("\nBreed " + c + data.getBreed().humanName));
-        if (data.getColor() != null) result.add(new TextComponent("\nColor " + c + data.getColor().humanName));
-        if (data.getMarkings() != null) result.add(new TextComponent("\nMarkings " + c + data.getMarkings().humanName));
-        result.add(new TextComponent("\n"));
-        result.add(new TextComponent("\nJump " + c + String.format("%.2f", data.getJump()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks)", data.getJumpHeight())));
-        result.add(new TextComponent("\nSpeed " + c + String.format("%.2f", data.getSpeed()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks/sec)", data.getSpeed() * 4.3)));
-        result.add(new TextComponent("\n"));
+        result.add(new TextComponent(d + "Name " + c + ChatColor.BOLD + data.getName()));
+        result.add(new TextComponent(d + ""));
+        result.add(new TextComponent(d + "Owner " + c + (data.getOwner() == null ? "None" : data.getOwner().getName())));
+        result.add(new TextComponent(d + "Gender " + c + data.getGender().humanName + " " + data.getGender().symbol));
+        result.add(new TextComponent(d + "Age " + c + data.getAge().humanName));
+        if (data.getBrand() != null) result.add(new TextComponent(d + "Brand " + c + data.getBrand().getFormat()));
+        result.add(new TextComponent(""));
+        result.add(new TextComponent(d + "Breed " + c + data.getBreed().humanName));
+        if (data.getColor() != null) result.add(new TextComponent(d + "Color " + c + data.getColor().humanName));
+        if (data.getMarkings() != null) result.add(new TextComponent(d + "Markings " + c + data.getMarkings().humanName));
+        result.add(new TextComponent(""));
+        result.add(new TextComponent(d + "Jump " + c + String.format("%.2f", data.getJump()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks)", data.getJumpHeight())));
+        result.add(new TextComponent(d + "Speed " + c + String.format("%.2f", data.getSpeed()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks/sec)", data.getSpeed() * 4.3)));
         if (!data.getTrusted().isEmpty()) {
+            result.add(new TextComponent(""));
             Iterator<HorseData.Equestrian> iter = data.getTrusted().iterator();
             StringBuilder sb = new StringBuilder(iter.next().getName());
             while (iter.hasNext()) sb.append(", ").append(iter.next().getName());
-            result.add(new TextComponent("\nTrusted " + ChatColor.GRAY + sb.toString()));
+            result.add(new TextComponent(d + "Trusted " + ChatColor.GRAY + sb.toString()));
         }
-        return result.toArray(new BaseComponent[0]);
+        return result;
     }
 }

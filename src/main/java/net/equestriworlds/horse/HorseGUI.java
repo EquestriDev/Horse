@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.md_5.bungee.api.ChatColor;
@@ -70,14 +71,7 @@ final class HorseGUI implements InventoryHolder {
             }
             ItemMeta meta = icon.getItemMeta();
             meta.setDisplayName(ChatColor.GOLD + data.getName());
-            String[] lore = {
-                ChatColor.GOLD + "Age " + ChatColor.YELLOW + data.getAge().humanName,
-                ChatColor.GOLD + "Gender " + ChatColor.YELLOW + data.getGender().humanName,
-                ChatColor.GOLD + "Breed " + ChatColor.YELLOW + data.getBreed().humanName,
-                "" + ChatColor.LIGHT_PURPLE + ChatColor.ITALIC + "CLICK " + ChatColor.WHITE + "More info",
-                "" + ChatColor.LIGHT_PURPLE + ChatColor.ITALIC + "SHIFT-CLICK " + ChatColor.WHITE + "Bring horse"
-            };
-            meta.setLore(Arrays.asList(lore));
+            meta.setLore(this.plugin.getHorseCommand().describeHorse(data).stream().map(bc -> bc.toPlainText()).collect(Collectors.toList()));
             icon.setItemMeta(meta);
             this.inventory.setItem(currentIndex, icon);
             clicks.put(currentIndex, (event) -> {

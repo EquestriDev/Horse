@@ -3,7 +3,7 @@ version: 1.0
 author: StarTux
 main: net.equestriworlds.horse.HorsePlugin
 website: https://equestriworlds.net
-depend: []
+depend: [Vault]
 softdepend: []
 commands:
   horse:
@@ -12,8 +12,8 @@ commands:
     permission: horse.horse
     usage: |-
       /h - Open horse menu
-      /h claim - Claim your horse
       /h list - List your horses
+      /h claim - Claim your horse
       /h here - Bring the horse
       /h info - Information about your horse
       /h registerbrand - Register brand

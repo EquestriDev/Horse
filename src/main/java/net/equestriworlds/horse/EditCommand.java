@@ -42,10 +42,12 @@ final class EditCommand extends CommandBase {
     private final EditField breed = new EditField<HorseBreed>("breed", "Breed", HorseData::getBreed, HorseData::setBreed, HorseBreed::valueOf);
     private final EditField color = new EditField<HorseColor>("color", "Color", HorseData::getColor, HorseData::setColor, HorseColor::valueOf);
     private final EditField markings = new EditField<HorseMarkings>("markings", "Markings", HorseData::getMarkings, HorseData::setMarkings, HorseMarkings::valueOf);
+    private final EditField brand = new EditField<HorseBrand>("brand", "Brand", null, null, null);
     private final EditField jump = new EditField<Double>("jump", "Jump", HorseData::getJump, HorseData::setJump, Double::parseDouble);
     private final EditField speed = new EditField<Double>("speed", "Speed", HorseData::getSpeed, HorseData::setSpeed, Double::parseDouble);
-    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.jump, this.speed);
+    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.jump, this.speed);
     private final List<ChatColor> colorful = Arrays.asList(ChatColor.AQUA, ChatColor.BLUE, ChatColor.GOLD, ChatColor.GREEN, ChatColor.LIGHT_PURPLE, ChatColor.RED, ChatColor.YELLOW);
+    private int colorfulIndex;
     private final List<String> dice = Arrays.asList("\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685");
 
     EditCommand(HorsePlugin plugin) {
@@ -93,6 +95,11 @@ final class EditCommand extends CommandBase {
         if (args.length == 2 && args[0].equals("randomize")) {
             data.randomize(this.plugin, args[1]);
             if (data.getId() >= 0) this.plugin.updateHorseEntity(data);
+            showEditingMenu(player, data);
+            return true;
+        }
+        if (args.length == 1 && args[0].equals("removebrand")) {
+            data.setBrand(null);
             showEditingMenu(player, data);
             return true;
         }
@@ -207,113 +214,48 @@ final class EditCommand extends CommandBase {
                            + ChatColor.YELLOW + " ]"
                            + ChatColor.YELLOW + ChatColor.STRIKETHROUGH + "            ");
         ComponentBuilder cb = null;
-        int index = 0;
+        // All edit fields
+        this.colorfulIndex = 0;
         for (EditField field: this.editFields) {
             if (cb == null) cb = new ComponentBuilder("");
-            Object o = field.getter.apply(data);
-            if (o == null) continue;
-            String displayValue = displayValue(data, field, o);
-            cb.append(field.name).color(ChatColor.GOLD).bold(true).italic(true);
-            cb.append(" ").reset();
-            // Randomize
-            cb.append("[" + this.dice.get(ThreadLocalRandom.current().nextInt(this.dice.size())) + "]").color(ChatColor.GREEN); // dice
-            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit randomize " + field.key));
-            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "Randomize " + field.name)));
-            cb.append(" ").reset();
-            boolean adjustButtons = false;
-            boolean slideButtons = false;
-            List<Object> possibleValues = listPossibleValues(data, field);
-            if (field == this.speed || field == this.jump) {
-                adjustButtons = true;
-            } else if (possibleValues != null && possibleValues.size() > 1) {
-                slideButtons = true;
-            }
-            // Minus button
-            if (adjustButtons) {
-                Double newValue = Math.max(0.0, (Double)o - 0.01);
-                cb.append("-").color(ChatColor.RED).bold(true);
-                String cmd = "/ha edit " + field.key + " " + String.format("%.02f", newValue);
-                cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
-                cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.DARK_GRAY + "Reduce " + field.name)));
-            } else if (slideButtons) {
-                int valueIndex = Math.max(0, possibleValues.indexOf(o));
-                valueIndex -= 1;
-                if (valueIndex < 0) valueIndex += possibleValues.size();
-                Object newValue = possibleValues.get(valueIndex);
-                String newDisplay = displayValue(data, field, newValue);
-                cb.append("< ").color(ChatColor.GRAY).bold(true);
-                String cmd = "/ha edit " + field.key + " " + newValue;
-                cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
-                cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GRAY + "Set " + field.name + " to " + newDisplay)));
-            }
-            // Show value button
-            if (true) {
-                ChatColor valueColor = colorful.get(index++ % colorful.size());
-                if (possibleValues != null) {
-                    // With available values, print a menu on click
-                    String cmd = "/ha edit " + field.key;
-                    if (possibleValues.size() > 1) {
-                        cb.append("[" + displayValue + "]").color(valueColor);
-                        cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
-                        cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + cmd + "\n" + ChatColor.WHITE + ChatColor.ITALIC + "Set the " + field.name)));
-                    } else {
-                        cb.append(displayValue).color(valueColor);
-                    }
+            boolean printLine;
+            if (field == this.brand) {
+                HorseBrand horseBrand = data.getBrand();
+                if (horseBrand != null) {
+                    printLine = true;
+                    cb.append("Brand").color(ChatColor.GOLD).bold(true).italic(true).append(" ").reset();
+                    cb.append(horseBrand.getFormat()).append(" ").reset();
+                    cb.append("(" + this.plugin.cachedPlayerName(horseBrand.getOwner()) + ")").color(ChatColor.GRAY).append(" ").reset();
+                    cb.append("[Remove]").color(ChatColor.RED)
+                        .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit removebrand"))
+                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.RED + "Remove this brand from this horse.")));
                 } else {
-                    // Else just suggest the command to allow editing
-                    String cmd = "/ha edit " + field.key + " " + displayValue;
-                    cb.append("[" + displayValue + "]").color(valueColor);
-                    cb.event(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, cmd));
-                    cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + cmd + "\n" + ChatColor.WHITE + ChatColor.ITALIC + "Set the " + field.name)));
+                    printLine = false;
                 }
+            } else {
+                printLine = standardEditField(data, field, cb);
             }
-            if (adjustButtons) {
-                Double newValue = Math.max(0.0, (Double)o + 0.01);
-                cb.append("+").color(ChatColor.GREEN).bold(true);
-                String cmd = "/ha edit " + field.key + " " + String.format("%.02f", newValue);
-                cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
-                cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.DARK_GRAY + "Increase " + field.name)));
-            } else if (slideButtons) {
-                int valueIndex = Math.max(0, possibleValues.indexOf(o));
-                valueIndex = (valueIndex + 1) % possibleValues.size();
-                Object newValue = possibleValues.get(valueIndex);
-                String newDisplay = displayValue(data, field, newValue);
-                cb.append(" >").color(ChatColor.GRAY).bold(true);
-                String cmd = "/ha edit " + field.key + " " + newValue;
-                cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
-                cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GRAY + "Set " + field.name + " to " + newDisplay)));
+            if (printLine) {
+                player.spigot().sendMessage(cb.create());
+                cb = null;
             }
-            // Jump Height
-            if (field == this.speed) {
-                cb.append(" ").reset();
-                cb.append("(" + String.format("%.02f", data.getSpeed() * 4.3) + " blocks/sec)").color(ChatColor.GRAY).italic(true);
-            } else if (field == this.jump) {
-                cb.append(" ").reset();
-                cb.append("(" + String.format("%.02f", data.getJumpHeight()) + " blocks)").color(ChatColor.GRAY).italic(true);
-            } else if (field == this.gender) {
-                cb.append(" ").reset();
-                HorseGender horseGender = (HorseGender)o;
-                cb.append(horseGender.symbol).color(horseGender.chatColor);
-            }
-            player.spigot().sendMessage(cb.create());
-            cb = null;
         }
         // Presets
         {
             cb = new ComponentBuilder("");
-            cb.append("Preset").color(ChatColor.LIGHT_PURPLE).bold(true).italic(true);
-            cb.append(" ").reset();
-            ChatColor valueColor = colorful.get(index++ % colorful.size());
+            cb.append("Presets").color(ChatColor.DARK_GRAY);
+            cb.append("  ").reset();
+            ChatColor valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
             cb.append("[Hunter]").color(valueColor)
                 .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset hunter"))
                 .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Hunter")));
             cb.append(" ").reset();
-            valueColor = colorful.get(index++ % colorful.size());
+            valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
             cb.append("[Dressage]").color(valueColor)
                 .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset dressage"))
                 .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Dressage")));
             cb.append(" ").reset();
-            valueColor = colorful.get(index++ % colorful.size());
+            valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
             cb.append("[Max]").color(valueColor)
                 .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset max"))
                 .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Maximum")));
@@ -321,13 +263,103 @@ final class EditCommand extends CommandBase {
             cb = null;
         }
         if (data.getId() < 0) {
-            cb = new ComponentBuilder("  ");
+            cb = new ComponentBuilder("New Horse").color(ChatColor.DARK_GRAY);
+            cb.append("  ").reset();
             cb.append("[Spawn]").color(ChatColor.GOLD)
                 .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit spawn"))
                 .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GOLD + "Spawn this " + data.getBreed().humanName)));
             player.spigot().sendMessage(cb.create());
             cb = null;
         }
+    }
+
+    boolean standardEditField(HorseData data, EditField field, ComponentBuilder cb) {
+        Object o = field.getter.apply(data);
+        if (o == null) return false;
+        String displayValue = displayValue(data, field, o);
+        cb.append(field.name).color(ChatColor.GOLD).bold(true).italic(true);
+        cb.append(" ").reset();
+        // Randomize
+        cb.append("[" + this.dice.get(ThreadLocalRandom.current().nextInt(this.dice.size())) + "]").color(ChatColor.GREEN); // dice
+        cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit randomize " + field.key));
+        cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "Randomize " + field.name)));
+        cb.append(" ").reset();
+        boolean adjustButtons = false;
+        boolean slideButtons = false;
+        List<Object> possibleValues = listPossibleValues(data, field);
+        if (field == this.speed || field == this.jump) {
+            adjustButtons = true;
+        } else if (possibleValues != null && possibleValues.size() > 1) {
+            slideButtons = true;
+        }
+        // Minus button
+        if (adjustButtons) {
+            Double newValue = Math.max(0.0, (Double)o - 0.01);
+            cb.append("-").color(ChatColor.RED).bold(true);
+            String cmd = "/ha edit " + field.key + " " + String.format("%.02f", newValue);
+            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
+            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.DARK_GRAY + "Reduce " + field.name)));
+        } else if (slideButtons) {
+            int valueIndex = Math.max(0, possibleValues.indexOf(o));
+            valueIndex -= 1;
+            if (valueIndex < 0) valueIndex += possibleValues.size();
+            Object newValue = possibleValues.get(valueIndex);
+            String newDisplay = displayValue(data, field, newValue);
+            cb.append("< ").color(ChatColor.GRAY).bold(true);
+            String cmd = "/ha edit " + field.key + " " + newValue;
+            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
+            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GRAY + "Set " + field.name + " to " + newDisplay)));
+        }
+        // Show value button
+        {
+            ChatColor valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
+            if (possibleValues != null) {
+                // With available values, print a menu on click
+                String cmd = "/ha edit " + field.key;
+                if (possibleValues.size() > 1) {
+                    cb.append("[" + displayValue + "]").color(valueColor);
+                    cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
+                    cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + cmd + "\n" + ChatColor.WHITE + ChatColor.ITALIC + "Set the " + field.name)));
+                } else {
+                    cb.append(displayValue).color(valueColor);
+                }
+            } else {
+                // Else just suggest the command to allow editing
+                String cmd = "/ha edit " + field.key + " " + displayValue;
+                cb.append("[" + displayValue + "]").color(valueColor);
+                cb.event(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, cmd));
+                cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + cmd + "\n" + ChatColor.WHITE + ChatColor.ITALIC + "Set the " + field.name)));
+            }
+        }
+        if (adjustButtons) {
+            Double newValue = Math.max(0.0, (Double)o + 0.01);
+            cb.append("+").color(ChatColor.GREEN).bold(true);
+            String cmd = "/ha edit " + field.key + " " + String.format("%.02f", newValue);
+            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
+            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.DARK_GRAY + "Increase " + field.name)));
+        } else if (slideButtons) {
+            int valueIndex = Math.max(0, possibleValues.indexOf(o));
+            valueIndex = (valueIndex + 1) % possibleValues.size();
+            Object newValue = possibleValues.get(valueIndex);
+            String newDisplay = displayValue(data, field, newValue);
+            cb.append(" >").color(ChatColor.GRAY).bold(true);
+            String cmd = "/ha edit " + field.key + " " + newValue;
+            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
+            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GRAY + "Set " + field.name + " to " + newDisplay)));
+        }
+        // Jump Height
+        if (field == this.speed) {
+            cb.append(" ").reset();
+            cb.append("(" + String.format("%.02f", data.getSpeed() * 4.3) + " blocks/sec)").color(ChatColor.GRAY).italic(true);
+        } else if (field == this.jump) {
+            cb.append(" ").reset();
+            cb.append("(" + String.format("%.02f", data.getJumpHeight()) + " blocks)").color(ChatColor.GRAY).italic(true);
+        } else if (field == this.gender) {
+            cb.append(" ").reset();
+            HorseGender horseGender = (HorseGender)o;
+            cb.append(horseGender.symbol).color(horseGender.chatColor);
+        }
+        return true;
     }
 
     // --- Utility

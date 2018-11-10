@@ -15,12 +15,14 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import net.equestriworlds.horse.dirty.NBT;
 import net.equestriworlds.horse.dirty.Path;
+import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.InventoryView;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -51,6 +53,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     private Gaits gaits;
     private List<String> horseNames;
     private Map<UUID, HorseBrand> horseBrands;
+    private Economy economy;
     // --- Dirty
     private NBT dirtyNBT = new NBT();
     private Path dirtyPath = new Path();
@@ -86,6 +89,8 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         getCommand("horseadmin").setExecutor(this.adminCommand);
         // Start tick timer
         getServer().getScheduler().runTaskTimer(this, this, 1L, 1L);
+        // Setup economy one tick later to make sure the unknown economy plugin (NOT Vault) was loaded.
+        getServer().getScheduler().runTask(this, this::setupEconomy);
     }
 
     /**
@@ -346,5 +351,27 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
 
     UUID cachedPlayerUuid(String name) {
         return getServer().getOfflinePlayer(name).getUniqueId();
+    }
+
+    // --- Economy
+
+    void setupEconomy() {
+        RegisteredServiceProvider<Economy> economyProvider = getServer().getServicesManager().getRegistration(Economy.class);
+        if (economyProvider != null) this.economy = economyProvider.getProvider();
+    }
+
+    boolean playerHasMoney(Player player, double amount) {
+        if (this.economy == null) return false;
+        return this.economy.has(player, amount);
+    }
+
+    boolean takePlayerMoney(Player player, double amount) {
+        if (this.economy == null) return false;
+        return this.economy.withdrawPlayer(player, amount).transactionSuccess();
+    }
+
+    String formatMoney(double amount) {
+        if (this.economy == null) return String.format("%.02f", amount);
+        return this.economy.format(amount);
     }
 }
