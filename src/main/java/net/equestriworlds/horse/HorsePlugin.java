@@ -101,10 +101,12 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     public void onDisable() {
         for (SpawnedHorse spawned: spawnedHorses) {
             if (spawned.isPresent()) {
-                spawned.data.storeLocation(spawned.getEntity().getLocation());
+                AbstractHorse entity = spawned.getEntity();
+                spawned.data.storeLocation(entity.getLocation());
+                spawned.data.storeInventory(this, entity);
                 this.database.updateHorse(spawned.data);
+                spawned.despawn();
             }
-            spawned.despawn();
         }
         horses.clear();
         spawnedHorses.clear();
@@ -152,8 +154,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     SpawnedHorse spawnHorse(HorseData data, Location location) {
         if (data == null) throw new NullPointerException("data cannot be null");
         if (location == null) throw new NullPointerException("location cannot be null");
-        AbstractHorse entity = (AbstractHorse)location.getWorld().spawn(location, (Class<? extends AbstractHorse>)data.getBreed().entityType.getEntityClass(), data::applyProperties);
-        entity.addScoreboardTag(SCOREBOARD_MARKER);
+        AbstractHorse entity = (AbstractHorse)location.getWorld().spawn(location, (Class<? extends AbstractHorse>)data.getBreed().entityType.getEntityClass(), e -> this.prepareHorseEntity(data, e));
         data.storeLocation(location);
         this.database.updateHorse(data);
         // Update or create the SpawnedHorse
@@ -181,8 +182,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         }
         if (!spawned.isPresent()) {
             // Spawn the entity
-            AbstractHorse entity = (AbstractHorse)location.getWorld().spawn(location, (Class<? extends AbstractHorse>)data.getBreed().entityType.getEntityClass(), data::applyProperties);
-            entity.addScoreboardTag(SCOREBOARD_MARKER);
+            AbstractHorse entity = (AbstractHorse)location.getWorld().spawn(location, (Class<? extends AbstractHorse>)data.getBreed().entityType.getEntityClass(), e -> this.prepareHorseEntity(data, e));
             spawned.setEntity(entity);
         } else {
             spawned.getEntity().teleport(location);
@@ -206,16 +206,27 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         SpawnedHorse spawned = this.findSpawnedHorse(data);
         if (spawned == null || !spawned.isPresent()) return null;
         AbstractHorse entity = spawned.getEntity();
-            Location location = entity.getLocation();
+        Location location = entity.getLocation();
         if (entity.getType() != data.getBreed().entityType) {
             spawned.despawn();
             spawnHorse(data, location);
         } else {
-            data.applyProperties(entity);
+            prepareHorseEntity(data, entity);
         }
         data.storeLocation(location);
         this.database.updateHorse(data);
         return spawned;
+    }
+
+    /**
+     * Called by the above 3 functions to prepare a possible newly
+     * spawned horse entity for further user in the system.  The
+     * scoreboard is set and all HorseData values applied.
+     */
+    void prepareHorseEntity(HorseData data, AbstractHorse entity) {
+        entity.addScoreboardTag(SCOREBOARD_MARKER);
+        data.applyProperties(entity);
+        data.applyInventory(this, entity);
     }
 
     SpawnedHorse findSpawnedHorse(HorseData data) {

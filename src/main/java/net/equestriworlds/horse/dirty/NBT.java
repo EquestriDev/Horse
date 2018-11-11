@@ -165,6 +165,24 @@ public final class NBT {
         }
     }
 
+    public Map<String, Object> serializeItem(org.bukkit.inventory.ItemStack bukkitItem) {
+        if (bukkitItem == null) throw new NullPointerException("bukkitItem cannot be null");
+        try {
+            ItemStack nmsItem;
+            if (bukkitItem instanceof CraftItemStack) {
+                CraftItemStack obcItem = (CraftItemStack)bukkitItem;
+                nmsItem = (ItemStack)this.fieldCraftItemStackHandle.get(obcItem);
+            } else {
+                nmsItem = CraftItemStack.asNMSCopy(bukkitItem);
+            }
+            NBTTagCompound tag = new NBTTagCompound();
+            nmsItem.save(tag);
+            return (Map<String, Object>)fromTag(tag);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * This will return a new instance if `bukkitItem` is an instance
      * of ItemStack instead of CraftItemStack, and possibly for other
@@ -190,6 +208,11 @@ public final class NBT {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public org.bukkit.inventory.ItemStack deserializeItem(Map<String, Object> json) {
+        if (json == null) throw new NullPointerException("json cannot be null");
+        return new ItemStack((NBTTagCompound)this.toTag(json)).asBukkitMirror();
     }
 
     public Map<String, Object> getBlockTag(org.bukkit.block.Block bukkitBlock) {

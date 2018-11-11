@@ -1,7 +1,9 @@
 package net.equestriworlds.horse;
 
+import com.google.gson.Gson;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -17,9 +19,9 @@ import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.AnimalTamer;
 import org.bukkit.entity.Horse;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 @Data
-// TODO: Inventory (part of NBT)
 final class HorseData {
     private int id = -1;
     // Identity
@@ -37,6 +39,7 @@ final class HorseData {
     // Access
     private HashSet<Equestrian> trusted = new HashSet<>();
     // Optionals
+    String armor, saddle;
     HorseLocation location;
     HorseBrand brand;
     Breeding breeding;
@@ -127,28 +130,45 @@ final class HorseData {
         this.speed = horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).getValue();
     }
 
-    void applyProperties(AbstractHorse horse) {
-        horse.setCustomName(this.name + " " + this.gender.chatColor + this.gender.symbol);
-        if (horse instanceof Horse) {
-            ((Horse)horse).setColor(this.color.bukkitColor);
-            ((Horse)horse).setStyle(this.markings.bukkitStyle);
+    /**
+     * Called by HorsePlugin#prepareHorseEntity().
+     * Apply all the stored horse properties to the horse entity.
+     */
+    void applyProperties(AbstractHorse entity) {
+        entity.setCustomName(this.name + " " + this.gender.chatColor + this.gender.symbol);
+        if (entity instanceof Horse) {
+            Horse horseEntity = (Horse)entity;
+            horseEntity.setColor(this.color.bukkitColor);
+            horseEntity.setStyle(this.markings.bukkitStyle);
         }
-        horse.setJumpStrength(this.jump);
-        horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.speed);
-        horse.setAge(this.age.minecraftAge);
-        horse.setAgeLock(true);
-        horse.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(20.0);
-        horse.setHealth(20.0);
+        entity.setJumpStrength(this.jump);
+        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.speed);
+        entity.setAge(this.age.minecraftAge);
+        entity.setAgeLock(true);
+        entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(20.0);
+        entity.setHealth(20.0);
         if (owner != null) {
-            horse.setTamed(true);
+            entity.setTamed(true);
             AnimalTamer player = Bukkit.getPlayer(this.owner.uuid);
             if (player == null) player = Bukkit.getOfflinePlayer(this.owner.uuid);
-            if (player != null) horse.setOwner(player);
+            if (player != null) entity.setOwner(player);
         } else {
-            horse.setTamed(false);
-            horse.setOwner(null);
+            entity.setTamed(false);
+            entity.setOwner(null);
         }
-        horse.getInventory().setSaddle(new org.bukkit.inventory.ItemStack(org.bukkit.Material.SADDLE));
+    }
+
+    /**
+     * Called by HorsePlugin#prepareHorseEntity().
+     * Apply the stored inventory items to the horse entity.
+     */
+    void applyInventory(HorsePlugin plugin, AbstractHorse entity) {
+        Gson gson = new Gson();
+        if (entity instanceof Horse) {
+            Horse horseEntity = (Horse)entity;
+            horseEntity.getInventory().setSaddle(this.saddle == null ? null : plugin.getDirtyNBT().deserializeItem((Map<String, Object>)gson.fromJson(this.saddle, Map.class)));
+            horseEntity.getInventory().setArmor(this.armor == null ? null : plugin.getDirtyNBT().deserializeItem((Map<String, Object>)gson.fromJson(this.armor, Map.class)));
+        }
     }
 
     // --- Location
@@ -169,6 +189,19 @@ final class HorseData {
 
     boolean isOwner(Player player) {
         return this.owner != null && this.owner.uuid.equals(player.getUniqueId());
+    }
+
+    // --- Inventory
+
+    void storeInventory(HorsePlugin plugin, AbstractHorse entity) {
+        Gson gson = new Gson();
+        if (entity instanceof Horse) {
+            Horse horseEntity = (Horse)entity;
+            ItemStack saddleItem = horseEntity.getInventory().getSaddle();
+            ItemStack armorItem = horseEntity.getInventory().getArmor();
+            this.saddle = saddleItem == null ? null : gson.toJson(plugin.getDirtyNBT().serializeItem(saddleItem));
+            this.armor = armorItem == null ? null : gson.toJson(plugin.getDirtyNBT().serializeItem(armorItem));
+        }
     }
 
     // --- Randomization
