@@ -52,13 +52,15 @@ final class HorseListener implements Listener {
                 e.remove();
             }
         }
-        // Spawn in HorseData where they left.
-        for (HorseData data: this.plugin.horsesInChunk(chunk)) {
-            if (data.getLocation() == null) continue;
+        final int cx = chunk.getX();
+        final int cz = chunk.getZ();
+        // Spawn in horse entity where they were last recorded.
+        for (HorseData data: this.plugin.getHorses()) {
+            HorseData.HorseLocation horseLocation = data.getLocation();
+            if (horseLocation == null || horseLocation.cx != cx || horseLocation.cz != cz) continue;
             SpawnedHorse spawnedHorse = this.plugin.findSpawnedHorse(data);
-            if (spawnedHorse == null || !spawnedHorse.isPresent()) {
-                this.plugin.spawnHorse(data, data.getLocation().bukkitLocation());
-            }
+            if (spawnedHorse != null && spawnedHorse.isPresent()) continue;
+            this.plugin.spawnHorse(data, horseLocation.bukkitLocation());
         }
     }
 
@@ -76,6 +78,7 @@ final class HorseListener implements Listener {
             SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
             if (spawned != null) {
                 spawned.data.storeLocation(entity.getLocation());
+                spawned.data.storeInventory(this.plugin, entity);
                 this.plugin.getDatabase().updateHorse(spawned.data);
                 entity.remove();
             } else if (entity.getScoreboardTags().contains(HorsePlugin.SCOREBOARD_MARKER)) {
@@ -97,7 +100,7 @@ final class HorseListener implements Listener {
         SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
         if (spawned == null) return;
         spawned.data.storeLocation(entity.getLocation());
-        // TODO: inventory
+        spawned.data.storeInventory(this.plugin, entity);
         this.plugin.getDatabase().updateHorse(spawned.data);
     }
 

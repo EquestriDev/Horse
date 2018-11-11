@@ -16,7 +16,6 @@ import lombok.Getter;
 import net.equestriworlds.horse.dirty.NBT;
 import net.equestriworlds.horse.dirty.Path;
 import net.milkbowl.vault.economy.Economy;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.AbstractHorse;
@@ -43,7 +42,6 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     private HorseDatabase database;
     private List<HorseData> horses;
     private List<SpawnedHorse> spawnedHorses = new ArrayList<>();
-    private final Map<String, Map<Long, List<HorseData>>> chunkCache = new HashMap<>();
     // --- Commands
     private HorseCommand horseCommand;
     private AdminCommand adminCommand;
@@ -110,7 +108,6 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         }
         horses.clear();
         spawnedHorses.clear();
-        chunkCache.clear();
         for (Player player: getServer().getOnlinePlayers()) {
             InventoryView view = player.getOpenInventory();
             if (view != null && view.getTopInventory().getHolder() instanceof HorseGUI) {
@@ -248,44 +245,6 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
 
     HorseData findHorse(int id) {
         return horses.stream().filter(h -> h.getId() == id).findFirst().orElse(null);
-    }
-
-    // --- Chunk cache
-
-    // TODO: Rewrite
-    // void updateChunkCache() {
-    //     if (chunkWorld != null) {
-    //         Map<Long, List<HorseData>> worldCache = chunkCache.get(chunkWorld);
-    //         if (worldCache != null) {
-    //             List<HorseData> horseCache = worldCache.get(chunkCoord);
-    //             if (horseCache != null) horseCache.remove(this);
-    //         }
-    //     }
-    //     chunkWorld = world;
-    //     chunkCoord = ((long)cz << 32) | (long)cx;
-    //     if (chunkWorld != null) {
-    //         Map<Long, List<HorseData>> worldCache = chunkCache.get(chunkWorld);
-    //         if (worldCache == null) {
-    //             worldCache = new HashMap<>();
-    //             chunkCache.put(chunkWorld, worldCache);
-    //         }
-    //         List<HorseData> horseCache = worldCache.get(chunkCoord);
-    //         if (horseCache == null) {
-    //             horseCache = new ArrayList<>();
-    //             worldCache.put(chunkCoord, horseCache);
-    //         }
-    //         horseCache.add(this);
-    //     }
-    // }
-
-    List<HorseData> horsesInChunk(Chunk chunk) {
-        List<HorseData> result = new ArrayList<>();
-        Map<Long, List<HorseData>> worldCache = chunkCache.get(chunk.getWorld().getName());
-        if (worldCache == null) return result;
-        long c = ((long)chunk.getZ() << 32) | (long)chunk.getX();
-        List<HorseData> horseCache = worldCache.get(c);
-        if (horseCache != null) result.addAll(horseCache);
-        return result;
     }
 
     // --- Random
