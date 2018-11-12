@@ -87,7 +87,7 @@ final class Gaits implements Listener {
         if (spawned == null) return;
         Player player = (Player)event.getEntity();
         removeGaitMeta(player);
-        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(spawned.data.getSpeed());
+        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(spawned.effectiveSpeed());
     }
 
     // Whip events
@@ -106,7 +106,7 @@ final class Gaits implements Listener {
         SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
         if (spawned == null) return;
         // Use
-        this.onUseCrop(player, entity, spawned.data);
+        this.onUseCrop(player, spawned);
         event.setCancelled(true);
     }
 
@@ -124,7 +124,7 @@ final class Gaits implements Listener {
         SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
         if (spawned == null) return;
         // Use
-        this.onUseCrop(player, entity, spawned.data);
+        this.onUseCrop(player, spawned);
         event.setCancelled(true);
     }
 
@@ -134,14 +134,14 @@ final class Gaits implements Listener {
      * increase, the horse speed set accordingly, and an audiovisual
      * cue be played.
      */
-    private void onUseCrop(Player player, AbstractHorse entity, HorseData data) {
+    private void onUseCrop(Player player, SpawnedHorse spawned) {
         GaitMeta meta = gaitMetaOf(player);
         long now = System.nanoTime();
         if (meta.gait == Gait.GALLOP) return;
         if (meta.cooldown > now) return;
         meta.cooldown = now + 1000000000; // 1 Second
         meta.gait = meta.gait.next();
-        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(data.getSpeed() * meta.gait.factor);
+        spawned.entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(spawned.effectiveSpeed() * meta.gait.factor);
         // Effects
         player.sendTitle("", "" + meta.gait.prefix + meta.gait.humanName, 0, 20, 40);
         player.getWorld().playSound(player.getEyeLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.5f, 1.2f);

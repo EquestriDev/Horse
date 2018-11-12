@@ -9,7 +9,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Value;
 import org.bukkit.Bukkit;
@@ -20,6 +19,8 @@ import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.AnimalTamer;
 import org.bukkit.entity.Horse;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.AbstractHorseInventory;
+import org.bukkit.inventory.ArmoredHorseInventory;
 import org.bukkit.inventory.ItemStack;
 
 @Data
@@ -27,7 +28,7 @@ final class HorseData {
     private int id = -1;
     // Identity
     private String name;
-    private Equestrian owner;
+    private UUID owner;
     // EquestriWorlds Properties
     private HorseGender gender;
     private long born;
@@ -38,7 +39,7 @@ final class HorseData {
     private HorseMarkings markings;
     private double jump, speed;
     // Access
-    private HashSet<Equestrian> trusted = new HashSet<>();
+    private HashSet<UUID> trusted = new HashSet<>();
     // Optionals
     String armor, saddle;
     HorseLocation location;
@@ -47,12 +48,6 @@ final class HorseData {
     Breeding breeding;
     Grooming grooming;
     Health health;
-
-    @Data @AllArgsConstructor
-    static final class Equestrian {
-        public final UUID uuid;
-        String name;
-    }
 
     @Value
     static final class HorseLocation {
@@ -146,19 +141,19 @@ final class HorseData {
         entity.setCustomName(this.name + " " + this.gender.chatColor + this.gender.symbol);
         if (entity instanceof Horse) {
             Horse horseEntity = (Horse)entity;
-            horseEntity.setColor(this.color.bukkitColor);
-            horseEntity.setStyle(this.markings.bukkitStyle);
+            if (this.color != null) horseEntity.setColor(this.color.bukkitColor);
+            if (this.markings != null) horseEntity.setStyle(this.markings.bukkitStyle);
         }
         entity.setJumpStrength(this.jump);
-        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.speed);
+        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.crosstie != null ? this.speed : 0.0);
         entity.setAge(this.age.minecraftAge);
         entity.setAgeLock(true);
         entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(20.0);
         entity.setHealth(20.0);
         if (owner != null) {
             entity.setTamed(true);
-            AnimalTamer player = Bukkit.getPlayer(this.owner.uuid);
-            if (player == null) player = Bukkit.getOfflinePlayer(this.owner.uuid);
+            AnimalTamer player = Bukkit.getPlayer(this.owner);
+            if (player == null) player = Bukkit.getOfflinePlayer(this.owner);
             if (player != null) entity.setOwner(player);
         } else {
             entity.setTamed(false);
@@ -172,10 +167,10 @@ final class HorseData {
      */
     void applyInventory(HorsePlugin plugin, AbstractHorse entity) {
         Gson gson = new Gson();
-        if (entity instanceof Horse) {
-            Horse horseEntity = (Horse)entity;
-            horseEntity.getInventory().setSaddle(this.saddle == null ? null : plugin.getDirtyNBT().deserializeItem((Map<String, Object>)gson.fromJson(this.saddle, Map.class)));
-            horseEntity.getInventory().setArmor(this.armor == null ? null : plugin.getDirtyNBT().deserializeItem((Map<String, Object>)gson.fromJson(this.armor, Map.class)));
+        AbstractHorseInventory inv = entity.getInventory();
+        inv.setSaddle(this.saddle == null ? null : plugin.getDirtyNBT().deserializeItem((Map<String, Object>)gson.fromJson(this.saddle, Map.class)));
+        if (inv instanceof ArmoredHorseInventory) {
+            ((ArmoredHorseInventory)inv).setArmor(this.armor == null ? null : plugin.getDirtyNBT().deserializeItem((Map<String, Object>)gson.fromJson(this.armor, Map.class)));
         }
     }
 
@@ -192,22 +187,22 @@ final class HorseData {
     // --- Owner
 
     void storeOwner(Player player) {
-        this.owner = new Equestrian(player.getUniqueId(), player.getName());
+        this.owner = player.getUniqueId();
     }
 
     boolean isOwner(Player player) {
-        return this.owner != null && this.owner.uuid.equals(player.getUniqueId());
+        return player.getUniqueId().equals(owner);
     }
 
     // --- Inventory
 
     void storeInventory(HorsePlugin plugin, AbstractHorse entity) {
         Gson gson = new Gson();
-        if (entity instanceof Horse) {
-            Horse horseEntity = (Horse)entity;
-            ItemStack saddleItem = horseEntity.getInventory().getSaddle();
-            ItemStack armorItem = horseEntity.getInventory().getArmor();
-            this.saddle = saddleItem == null ? null : gson.toJson(plugin.getDirtyNBT().serializeItem(saddleItem));
+        AbstractHorseInventory inv = entity.getInventory();
+        ItemStack saddleItem = inv.getSaddle();
+        this.saddle = saddleItem == null ? null : gson.toJson(plugin.getDirtyNBT().serializeItem(saddleItem));
+        if (inv instanceof ArmoredHorseInventory) {
+            ItemStack armorItem = ((ArmoredHorseInventory)inv).getArmor();
             this.armor = armorItem == null ? null : gson.toJson(plugin.getDirtyNBT().serializeItem(armorItem));
         }
     }
@@ -259,11 +254,7 @@ final class HorseData {
     // --- Access
 
     boolean canAccess(UUID playerId) {
-        if (this.owner != null && this.owner.uuid.equals(playerId)) return true;
-        for (Equestrian trustee: this.trusted) {
-            if (trustee.uuid.equals(playerId)) return true;
-        }
-        return false;
+        return playerId.equals(this.owner) || this.trusted.contains(playerId);
     }
 
     boolean canAccess(Player player) {

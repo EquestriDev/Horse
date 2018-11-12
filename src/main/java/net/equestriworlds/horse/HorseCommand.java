@@ -119,7 +119,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             if (!spawned.data.isOwner(player)) throw new CommandException("You do not own " + spawned.data.getName() + ".");
             Player target = playerWithName(args[0]);
             if (spawned.data.canAccess(target)) throw new CommandException(target.getName() + " can already access " + spawned.data.getName() + ".");
-            spawned.data.getTrusted().add(new HorseData.Equestrian(target.getUniqueId(), target.getName()));
+            spawned.data.getTrusted().add(target.getUniqueId());
             this.plugin.getDatabase().updateHorse(spawned.data);
             player.sendMessage(ChatColor.GOLD + "Trusted " + target.getName() + " to access " + spawned.data.getName() + ".");
             target.sendMessage(ChatColor.GOLD + player.getName() + " trusted you to access their horse " + spawned.data.getName() + ".");
@@ -131,18 +131,10 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             if (args.length != 1) return false;
             SpawnedHorse spawned = spawnedHorseOf(interactedHorseOf(player));
             if (!spawned.data.isOwner(player)) throw new CommandException("You do not own " + spawned.data.getName() + ".");
-            HorseData.Equestrian revokee = null;
-            for (Iterator<HorseData.Equestrian> iter = spawned.data.getTrusted().iterator(); iter.hasNext();) {
-                HorseData.Equestrian trustee = iter.next();
-                if (trustee.getName().equalsIgnoreCase(args[0])) {
-                    iter.remove();
-                    revokee = trustee;
-                    break;
-                }
-            }
-            if (revokee == null) throw new CommandException(args[0] + " is not trusted to use " + spawned.data.getName() + ".");
+            UUID revokee = playerUuidOf(args[0]);
+            if (!spawned.data.getTrusted().remove(revokee)) throw new CommandException(args[0] + " is not trusted to use " + spawned.data.getName() + ".");
             this.plugin.getDatabase().updateHorse(spawned.data);
-            player.sendMessage(ChatColor.YELLOW + "Removed trust for " + revokee.getName() + " from " + spawned.data.getName() + ".");
+            player.sendMessage(ChatColor.YELLOW + "Removed trust for " + args[0] + " from " + spawned.data.getName() + ".");
             HorseEffects.unfriendJingle(this.plugin, player);
             return true;
         }
@@ -231,7 +223,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         case "untrust": {
             if (args.length == 2) {
                 try {
-                    return tabComplete(args[1], spawnedHorseOf(interactedHorseOf(player)).data.getTrusted().stream().map(HorseData.Equestrian::getName));
+                    return tabComplete(args[1], spawnedHorseOf(interactedHorseOf(player)).data.getTrusted().stream().map(u -> playerNameOrElse(u, "?")));
                 } catch (Exception e) { }
             }
             return Collections.emptyList();
@@ -255,7 +247,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         ArrayList<BaseComponent> result = new ArrayList<>();
         result.add(new TextComponent(d + "Name " + c + ChatColor.BOLD + data.getName()));
         result.add(new TextComponent(d + ""));
-        result.add(new TextComponent(d + "Owner " + c + (data.getOwner() == null ? "None" : data.getOwner().getName())));
+        result.add(new TextComponent(d + "Owner " + c + playerNameOrElse(data.getOwner(), "N/A")));
         result.add(new TextComponent(d + "Gender " + c + data.getGender().humanName + " " + data.getGender().symbol));
         result.add(new TextComponent(d + "Age " + c + data.getAge().humanName));
         if (data.getBrand() != null) result.add(new TextComponent(d + "Brand " + c + data.getBrand().getFormat()));
@@ -268,9 +260,9 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         result.add(new TextComponent(d + "Speed " + c + String.format("%.2f", data.getSpeed()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks/sec)", data.getSpeed() * 4.3)));
         if (!data.getTrusted().isEmpty()) {
             result.add(new TextComponent(""));
-            Iterator<HorseData.Equestrian> iter = data.getTrusted().iterator();
-            StringBuilder sb = new StringBuilder(iter.next().getName());
-            while (iter.hasNext()) sb.append(", ").append(iter.next().getName());
+            Iterator<UUID> iter = data.getTrusted().iterator();
+            StringBuilder sb = new StringBuilder(playerNameOrElse(iter.next(), "N/A"));
+            while (iter.hasNext()) sb.append(", ").append(playerNameOrElse(iter.next(), "N/A"));
             result.add(new TextComponent(d + "Trusted " + ChatColor.GRAY + sb.toString()));
         }
         return result;

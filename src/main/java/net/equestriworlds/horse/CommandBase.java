@@ -205,4 +205,15 @@ abstract class CommandBase {
         if (result == null) throw new CommandException("Player not found: " + arg + ".");
         return result;
     }
+
+    UUID playerUuidOf(String arg) throws CommandException {
+        UUID result = this.plugin.cachedPlayerUuid(arg);
+        if (result == null) throw new CommandException("Player not found: " + arg + ".");
+        return result;
+    }
+
+    String playerNameOrElse(UUID id, String dfl) {
+        String result = this.plugin.cachedPlayerName(id);
+        return result != null ? result : dfl;
+    }
 }

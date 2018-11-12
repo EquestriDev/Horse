@@ -50,4 +50,8 @@ final class SpawnedHorse {
             this.entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(data.getSpeed());
         }
     }
+
+    double effectiveSpeed() {
+        return crosstie == null ? this.data.getSpeed() : 0.0;
+    }
 }
