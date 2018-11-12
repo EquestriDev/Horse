@@ -13,16 +13,19 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Getter;
-import net.equestriworlds.horse.dirty.NBT;
-import net.equestriworlds.horse.dirty.Path;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.AbstractHorse;
+import org.bukkit.entity.Bat;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LeashHitch;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 /**
  * Naming guidelines:
@@ -41,7 +44,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     // --- Horse Data
     private HorseDatabase database;
     private List<HorseData> horses;
-    private List<SpawnedHorse> spawnedHorses = new ArrayList<>();
+    private ArrayList<SpawnedHorse> spawnedHorses = new ArrayList<>();
     // --- Commands
     private HorseCommand horseCommand;
     private AdminCommand adminCommand;
@@ -53,8 +56,9 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     private Map<UUID, HorseBrand> horseBrands;
     private Economy economy;
     // --- Dirty
-    private NBT dirtyNBT = new NBT();
-    private Path dirtyPath = new Path();
+    private net.equestriworlds.horse.dirty.NBT dirtyNBT = new net.equestriworlds.horse.dirty.NBT();
+    private net.equestriworlds.horse.dirty.Path dirtyPath = new net.equestriworlds.horse.dirty.Path();
+    private net.equestriworlds.horse.dirty.Entities dirtyEntities = new net.equestriworlds.horse.dirty.Entities();
 
     // --- JavaPlugin
 
@@ -97,7 +101,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
      */
     @Override
     public void onDisable() {
-        for (SpawnedHorse spawned: spawnedHorses) {
+        for (SpawnedHorse spawned: this.spawnedHorses) {
             if (spawned.isPresent()) {
                 AbstractHorse entity = spawned.getEntity();
                 spawned.data.storeLocation(entity.getLocation());
@@ -115,6 +119,11 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
             }
             this.editCommand.removeEditingSession(player);
             this.gaits.removeGaitMeta(player);
+        }
+        for (World w: getServer().getWorlds()) {
+            for (Entity e: w.getEntities()) {
+                if (e.getScoreboardTags().contains(SCOREBOARD_MARKER)) e.remove();
+            }
         }
     }
 
@@ -155,16 +164,29 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         data.storeLocation(location);
         this.database.updateHorse(data);
         // Update or create the SpawnedHorse
-        SpawnedHorse spawnedHorse = findSpawnedHorse(data);
-        if (spawnedHorse == null) {
-            spawnedHorse = new SpawnedHorse(data);
-            spawnedHorse.setEntity(entity);
-            spawnedHorses.add(spawnedHorse);
+        SpawnedHorse spawned = findSpawnedHorse(data);
+        if (spawned == null) {
+            spawned = new SpawnedHorse(data);
+            spawned.setEntity(entity);
+            this.spawnedHorses.add(spawned);
+            HorseData.CrosstieData cd = data.getCrosstie();
+            if (cd != null
+                && cd.hitchA != null && cd.hitchA.size() == 3
+                && cd.hitchB != null && cd.hitchB.size() == 3) {
+                Bat bat = spawnCrosstieBat(location);
+                LeashHitch a = this.dirtyEntities.tieUp(bat, cd.hitchA.get(0), cd.hitchA.get(1), cd.hitchA.get(2));
+                LeashHitch b = this.dirtyEntities.tieUp(entity, cd.hitchB.get(0), cd.hitchB.get(1), cd.hitchB.get(2));
+                Crosstie crosstie = new Crosstie(spawned);
+                crosstie.setLeashedBat(bat);
+                crosstie.setHitchA(a);
+                crosstie.setHitchB(b);
+                spawned.setupCrosstie(crosstie);
+            }
         } else {
-            spawnedHorse.despawn();
-            spawnedHorse.setEntity(entity);
+            spawned.despawn();
+            spawned.setEntity(entity);
         }
-        return spawnedHorse;
+        return spawned;
     }
 
     /**
@@ -186,6 +208,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         }
         // Update data
         spawned.data.storeLocation(location);
+        spawned.data.setCrosstie(null);
         this.database.updateHorse(spawned.data);
         return spawned;
     }
@@ -267,10 +290,11 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         return names.get(random.nextInt(names.size()));
     }
 
-    // --- Horse Ticking
+    // --- Ticking
 
     @Override
     public void run() {
+        // SpawnedHorse
         for (Iterator<SpawnedHorse> iter = this.spawnedHorses.iterator(); iter.hasNext();) {
             if (!iter.next().isPresent()) iter.remove();
         }
@@ -284,6 +308,12 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         spawned.setTicksLived(ticksLived + 1);
         if ((ticksLived % 10) == 0 && spawned.getFollowing() != null) {
             if (!followHorse(spawned)) spawned.setFollowing(null);
+        }
+        Crosstie crosstie = spawned.getCrosstie();
+        if (crosstie != null && !crosstie.check()) {
+            spawned.removeCrosstie();
+            spawned.data.setCrosstie(null);
+            this.database.updateHorse(spawned.data);
         }
     }
 
@@ -343,5 +373,16 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     String formatMoney(double amount) {
         if (this.economy == null) return String.format("%.02f", amount);
         return this.economy.format(amount);
+    }
+
+    // --- Util
+
+    Bat spawnCrosstieBat(Location location) {
+        return location.getWorld().spawn(location, Bat.class, b -> {
+                b.addScoreboardTag(HorsePlugin.SCOREBOARD_MARKER);
+                b.setAI(false);
+                b.setSilent(true);
+                b.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 99999, 0, true, false));
+            });
     }
 }

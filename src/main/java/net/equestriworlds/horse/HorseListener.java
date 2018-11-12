@@ -4,16 +4,20 @@ import lombok.RequiredArgsConstructor;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.AbstractHorse;
+import org.bukkit.entity.Bat;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LeashHitch;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.PlayerLeashEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -22,7 +26,9 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
 import org.spigotmc.event.entity.EntityDismountEvent;
 import org.spigotmc.event.entity.EntityMountEvent;
 
@@ -46,7 +52,7 @@ final class HorseListener implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
     public void onChunkLoad(ChunkLoadEvent event) {
         final Chunk chunk = event.getChunk();
-        // Remove stray HorseData.
+        // Remove stray entities.
         for (Entity e: chunk.getEntities()) {
             if (e.getScoreboardTags().contains(HorsePlugin.SCOREBOARD_MARKER)) {
                 e.remove();
@@ -73,17 +79,17 @@ final class HorseListener implements Listener {
     public void onChunkUnload(ChunkUnloadEvent event) {
         final Chunk chunk = event.getChunk();
         for (Entity e: chunk.getEntities()) {
-            if (!(e instanceof AbstractHorse)) continue;
-            AbstractHorse entity = (AbstractHorse)e;
-            SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
-            if (spawned != null) {
-                spawned.data.storeLocation(entity.getLocation());
-                spawned.data.storeInventory(this.plugin, entity);
-                this.plugin.getDatabase().updateHorse(spawned.data);
-                entity.remove();
-            } else if (entity.getScoreboardTags().contains(HorsePlugin.SCOREBOARD_MARKER)) {
-                entity.remove();
+            if (!e.getScoreboardTags().contains(HorsePlugin.SCOREBOARD_MARKER)) continue;
+            if (e instanceof AbstractHorse) {
+                AbstractHorse entity = (AbstractHorse)e;
+                SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
+                if (spawned != null) {
+                    spawned.data.storeLocation(entity.getLocation());
+                    spawned.data.storeInventory(this.plugin, entity);
+                    this.plugin.getDatabase().updateHorse(spawned.data);
+                }
             }
+            e.remove();
         }
     }
 
@@ -164,6 +170,61 @@ final class HorseListener implements Listener {
             // Fix orientation
             final Location location = player.getLocation();
             Bukkit.getScheduler().runTask(this.plugin, () -> player.teleport(location));
+            return;
+        }
+        // Crossties
+        ItemStack item = event.getHand() == EquipmentSlot.OFF_HAND ? player.getInventory().getItemInOffHand() : player.getInventory().getItemInMainHand();
+        Crosstie crosstie = spawned.getCrosstie();
+        if (crosstie == null
+            && item != null && item.getType() == Material.LEASH
+            && entity.isLeashed() && entity.getLeashHolder() instanceof LeashHitch) {
+            if (crosstie == null) {
+                // New crosstie
+                // Replace current leash with armor stand.
+                LeashHitch hitch = (LeashHitch)entity.getLeashHolder();
+                entity.setLeashHolder(player);
+                Bat bat = this.plugin.spawnCrosstieBat(entity.getLocation());
+                bat.setLeashHolder(hitch);
+                // Crosstie object
+                crosstie = new Crosstie(spawned);
+                crosstie.setHitchA(hitch);
+                crosstie.setHolder(player);
+                crosstie.setLeashedBat(bat);
+                spawned.setupCrosstie(crosstie);
+                // Cancel event and turn player
+                event.setCancelled(true);
+                Location playerLocation = player.getLocation();
+                player.teleport(playerLocation);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerLeashEntity(PlayerLeashEntityEvent event) {
+        if (!(event.getEntity() instanceof AbstractHorse)) return;
+        AbstractHorse entity = (AbstractHorse)event.getEntity();
+        SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
+        if (spawned == null) return;
+        Player player = event.getPlayer();
+        if (!spawned.data.canAccess(player)) {
+            event.setCancelled(true);
+            return;
+        }
+        Crosstie crosstie = spawned.getCrosstie();
+        if (crosstie != null && crosstie.isValid()) {
+            if (event.getLeashHolder() instanceof LeashHitch) {
+                Bat leashedBat = crosstie.getLeashedBat();
+                if (leashedBat != null && leashedBat.isLeashed() && leashedBat.getLeashHolder().equals(event.getLeashHolder())) {
+                    // At this point, data should not yet contain a
+                    // crosstie instance.
+                    spawned.removeCrosstie();
+                    return;
+                }
+                // Success
+                crosstie.setHolder(null);
+                crosstie.setHitchB((LeashHitch)event.getLeashHolder());
+                if (crosstie.check()) spawned.data.setCrosstie(crosstie.serialize());
+            }
         }
     }
 

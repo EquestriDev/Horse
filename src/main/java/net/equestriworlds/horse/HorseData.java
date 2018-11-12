@@ -3,6 +3,7 @@ package net.equestriworlds.horse;
 import com.google.gson.Gson;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -41,6 +42,7 @@ final class HorseData {
     // Optionals
     String armor, saddle;
     HorseLocation location;
+    CrosstieData crosstie;
     HorseBrand brand;
     Breeding breeding;
     Grooming grooming;
@@ -78,6 +80,12 @@ final class HorseData {
             this.cz = bukkitLocation.getBlockZ() >> 4;
             this.chunkIndex = ((long)cz << 32) | (long)cx;
         }
+    }
+
+    @Value
+    static final class CrosstieData {
+        public final List<Integer> hitchA;
+        public final List<Integer> hitchB;
     }
 
     enum BreedingStage {

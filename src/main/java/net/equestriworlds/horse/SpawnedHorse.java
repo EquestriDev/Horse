@@ -4,6 +4,7 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.AbstractHorse;
 
 /**
@@ -15,11 +16,13 @@ final class SpawnedHorse {
     AbstractHorse entity;
     long ticksLived;
     UUID following;
+    Crosstie crosstie;
 
     void despawn() {
         if (entity == null) return;
         entity.remove();
         entity = null;
+        if (crosstie != null) removeCrosstie();
     }
 
     boolean isPresent() {
@@ -28,5 +31,23 @@ final class SpawnedHorse {
 
     boolean represents(AbstractHorse otherEntity) {
         return this.entity != null && this.entity.equals(otherEntity);
+    }
+
+    void setupCrosstie(Crosstie newCrosstie) {
+        if (this.crosstie != null) throw new IllegalStateException("crosstie already set");
+        if (newCrosstie.isValid()) throw new IllegalStateException("crosstie already validated");
+        this.crosstie = newCrosstie;
+        this.crosstie.setValid(true);
+        if (!this.crosstie.check()) throw new IllegalStateException("new crosstie immediately fails check");
+        this.entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(0.0);
+    }
+
+    void removeCrosstie() {
+        if (this.crosstie == null) throw new IllegalStateException("crosstie already null");
+        this.crosstie.remove();
+        this.crosstie = null;
+        if (this.entity != null && this.entity.isValid()) {
+            this.entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(data.getSpeed());
+        }
     }
 }
