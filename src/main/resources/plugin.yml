@@ -14,6 +14,7 @@ commands:
       /h - Open horse menu
       /h list - List your horses
       /h claim - Claim your horse
+      /h rename <name> - Rename horse
       /h here - Bring the horse
       /h info - Information about your horse
       /h registerbrand - Register brand

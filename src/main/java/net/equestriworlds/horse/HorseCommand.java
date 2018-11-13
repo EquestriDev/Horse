@@ -22,7 +22,7 @@ import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Player;
 
 final class HorseCommand extends CommandBase implements TabExecutor {
-    public final List<String> commands = Arrays.asList("claim", "list", "here", "bring", "info", "follow", "unfollow", "trust", "untrust", "registerbrand", "brandlist");
+    public final List<String> commands = Arrays.asList("claim", "rename", "list", "here", "bring", "info", "follow", "unfollow", "trust", "untrust", "registerbrand", "brandlist");
 
     HorseCommand(HorsePlugin plugin) {
         super(plugin);
@@ -55,24 +55,39 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         case "claim": case "c": {
             AbstractHorse entity = this.interactedHorseOf(player);
             SpawnedHorse spawned = this.spawnedHorseOf(entity);
-            String name = this.horseNameOf(spawned.data, args);
+            if (spawned.data.getOwner() != null) throw new CommandException("Already claimed!");
             // Update and save HorseData
+            if (args.length > 0) spawned.data.setName(this.horseNameOf(args)); // throws
             spawned.data.storeOwner(player);
-            spawned.data.setName(name);
             spawned.data.storeLocation(entity.getLocation());
             updateHorseData(spawned.data);
             // Update the horse entity.
             entity.setTamed(true);
             entity.setOwner(player);
-            player.sendMessage(ChatColor.GREEN + "You claimed the horse named " + name + "!");
+            player.sendMessage(ChatColor.GREEN + "You claimed the horse named " + spawned.data.getName() + ChatColor.RESET + ChatColor.GREEN + "!");
+            player.playSound(player.getEyeLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 0.25f, 1.25f);
             HorseEffects.claim(plugin, player, entity);
+            return true;
+        }
+        case "rename": {
+            if (args.length == 0) return false;
+            AbstractHorse entity = this.interactedHorseOf(player);
+            SpawnedHorse spawned = this.spawnedHorseOf(entity);
+            if (!spawned.data.isOwner(player)) throw new CommandException(spawned.data.getStrippedName() + " does not belong to you!");
+            String name = this.horseNameOf(args);
+            spawned.data.setName(name);
+            this.plugin.getDatabase().updateHorse(spawned.data);
+            this.plugin.updateHorseEntity(spawned.data);
+            player.sendMessage(ChatColor.GREEN + "Renamed to " + spawned.data.getName() + ChatColor.RESET + ChatColor.GREEN + ".");
+            player.playSound(player.getEyeLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 0.25f, 1.25f);
             return true;
         }
         case "here": case "bring": {
             if (args.length == 0) return false;
             HorseData data = this.ownedHorseOf(player, args);
             this.plugin.teleportHorse(data, player.getLocation());
-            player.sendMessage(ChatColor.GREEN + data.getName() + " teleported to you.");
+            player.sendMessage(ChatColor.GREEN + data.getName() + ChatColor.RESET + ChatColor.GREEN + " teleported to you.");
+            player.getWorld().playSound(player.getLocation(), Sound.ENTITY_HORSE_LAND, SoundCategory.MASTER, 1.0f, 1.0f);
             return true;
         }
         case "info": {
@@ -92,7 +107,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             UUID playerId = player.getUniqueId();
             for (SpawnedHorse spawned: nearbyAccessibleHorsesOf(player)) {
                 spawned.setFollowing(playerId);
-                player.sendMessage(ChatColor.GOLD + spawned.data.getName() + " is now following you.");
+                player.sendMessage(ChatColor.GOLD + spawned.data.getName() + ChatColor.RESET + ChatColor.GOLD + " is now following you.");
                 player.playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_AMBIENT, SoundCategory.NEUTRAL, 0.5f, 1.0f);
                 player.spawnParticle(Particle.VILLAGER_HAPPY, spawned.getEntity().getEyeLocation(), 8, 0.5, 0.5, 0.5, 0.0);
             }
@@ -106,7 +121,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
                 if (playerId.equals(spawned.getFollowing())) {
                     spawned.setFollowing(null);
                     unfollowed += 1;
-                    player.sendMessage(ChatColor.YELLOW + spawned.data.getName() + " is no longer following you.");
+                    player.sendMessage(ChatColor.YELLOW + spawned.data.getName() + ChatColor.RESET + ChatColor.YELLOW + " is no longer following you.");
                     player.playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_ANGRY, SoundCategory.NEUTRAL, 0.5f, 1.0f);
                     player.spawnParticle(Particle.VILLAGER_ANGRY, spawned.getEntity().getEyeLocation(), 4, 0.5, 0.5, 0.5, 0.0);
                 }
@@ -117,13 +132,13 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         case "trust": {
             if (args.length != 1) return false;
             SpawnedHorse spawned = spawnedHorseOf(interactedHorseOf(player));
-            if (!spawned.data.isOwner(player)) throw new CommandException("You do not own " + spawned.data.getName() + ".");
+            if (!spawned.data.isOwner(player)) throw new CommandException("You do not own " + spawned.data.getStrippedName() + ".");
             Player target = playerWithName(args[0]);
-            if (spawned.data.canAccess(target)) throw new CommandException(target.getName() + " can already access " + spawned.data.getName() + ".");
+            if (spawned.data.canAccess(target)) throw new CommandException(target.getName() + " can already access " + spawned.data.getStrippedName() + ".");
             spawned.data.getTrusted().add(target.getUniqueId());
             this.plugin.getDatabase().updateHorse(spawned.data);
-            player.sendMessage(ChatColor.GOLD + "Trusted " + target.getName() + " to access " + spawned.data.getName() + ".");
-            target.sendMessage(ChatColor.GOLD + player.getName() + " trusted you to access their horse " + spawned.data.getName() + ".");
+            player.sendMessage(ChatColor.GOLD + "Trusted " + target.getName() + " to access " + spawned.data.getName() + ChatColor.RESET + ChatColor.GOLD + ".");
+            target.sendMessage(ChatColor.GOLD + player.getName() + " trusted you to access their horse " + spawned.data.getName() + ChatColor.RESET + ChatColor.GOLD + ".");
             HorseEffects.friendJingle(this.plugin, player);
             HorseEffects.friendJingle(this.plugin, target);
             return true;
@@ -131,11 +146,11 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         case "untrust": {
             if (args.length != 1) return false;
             SpawnedHorse spawned = spawnedHorseOf(interactedHorseOf(player));
-            if (!spawned.data.isOwner(player)) throw new CommandException("You do not own " + spawned.data.getName() + ".");
+            if (!spawned.data.isOwner(player)) throw new CommandException("You do not own " + spawned.data.getStrippedName() + ".");
             UUID revokee = playerUuidOf(args[0]);
-            if (!spawned.data.getTrusted().remove(revokee)) throw new CommandException(args[0] + " is not trusted to use " + spawned.data.getName() + ".");
+            if (!spawned.data.getTrusted().remove(revokee)) throw new CommandException(args[0] + " is not trusted to use " + spawned.data.getStrippedName() + ".");
             this.plugin.getDatabase().updateHorse(spawned.data);
-            player.sendMessage(ChatColor.YELLOW + "Removed trust for " + args[0] + " from " + spawned.data.getName() + ".");
+            player.sendMessage(ChatColor.YELLOW + "Removed trust for " + args[0] + " from " + spawned.data.getName() + ChatColor.RESET + ChatColor.YELLOW + ".");
             HorseEffects.unfriendJingle(this.plugin, player);
             return true;
         }
@@ -175,7 +190,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             if (!this.plugin.takePlayerMoney(player, price)) throw new CommandException("You cannot afford " + priceFormat + ".");
             spawned.data.setBrand(horseBrand);
             this.plugin.getDatabase().updateHorse(spawned.data);
-            player.sendMessage(ChatColor.GOLD + spawned.data.getName() + " was branded with " + ChatColor.RESET + horseBrand.getFormat() + ChatColor.RESET + ChatColor.GOLD + " for " + ChatColor.YELLOW + ChatColor.ITALIC + priceFormat + ChatColor.RESET + ChatColor.GOLD + ".");
+            player.sendMessage(ChatColor.GOLD + spawned.data.getName() + ChatColor.RESET + ChatColor.GOLD + " was branded with " + ChatColor.RESET + horseBrand.getFormat() + ChatColor.RESET + ChatColor.GOLD + " for " + ChatColor.YELLOW + ChatColor.ITALIC + priceFormat + ChatColor.RESET + ChatColor.GOLD + ".");
             player.getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.BLOCK_FIRE_EXTINGUISH, SoundCategory.NEUTRAL, 0.5f, 1.0f);
             player.getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_HURT, SoundCategory.NEUTRAL, 0.5f, 1.0f);
             player.getWorld().spawnParticle(Particle.LAVA, spawned.getEntity().getLocation(), 32, 0.25, 0.0, 0.25, 0.0);
@@ -194,7 +209,21 @@ final class HorseCommand extends CommandBase implements TabExecutor {
                                + ChatColor.YELLOW + " ]"
                                + ChatColor.YELLOW + ChatColor.STRIKETHROUGH + "            ");
             for (BaseComponent bc: this.describeHorse(data)) player.spigot().sendMessage(bc);
-            player.spigot().sendMessage(new ComponentBuilder("").append("Summon ").color(ChatColor.DARK_GRAY).italic(true).append("[Bring]").italic(false).color(ChatColor.GREEN).event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + data.getName())).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + data.getName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + data.getName() + " here."))).create());
+            ComponentBuilder cb = new ComponentBuilder("")
+                .append("Options").color(ChatColor.DARK_GRAY).italic(true);
+            cb.append("  ").reset();
+            cb.append("[Bring]").italic(false).color(ChatColor.GREEN)
+                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse here " + data.getStrippedName()))
+                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "/horse here " + data.getStrippedName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Teleport " + data.getStrippedName() + " here.")));
+            cb.append("  ").reset();
+            cb.append("[Rename]").italic(false).color(ChatColor.BLUE)
+                .event(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/horse rename " + data.getStrippedName()))
+                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.BLUE + "/horse rename " + data.getStrippedName() + "\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "Change the name of " + data.getStrippedName() + ".")));
+            cb.append("  ").reset();
+            cb.append("[Info]").italic(false).color(ChatColor.YELLOW)
+                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/horse info"))
+                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.YELLOW + "/horse info\n" + ChatColor.DARK_PURPLE + ChatColor.ITALIC + "View this info screen.")));
+            player.spigot().sendMessage(cb.create());
             player.sendMessage("");
     }
 
@@ -216,7 +245,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         case "here":
         case "info":
         case "bring":
-            if (args.length == 2) return tabComplete(args[1], this.plugin.findHorses(player).stream().map(HorseData::getName).map(n -> n.replace(" ", "")));
+            if (args.length == 2) return tabComplete(args[1], this.plugin.findHorses(player).stream().map(HorseData::getStrippedName).map(n -> n.replace(" ", "")));
             return null;
         case "trust":
             if (args.length == 2) return null;
@@ -246,7 +275,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         String c = "" + data.getGender().chatColor;
         String d = "" + ChatColor.GRAY + ChatColor.ITALIC;
         ArrayList<BaseComponent> result = new ArrayList<>();
-        result.add(new TextComponent(d + "Name " + c + ChatColor.BOLD + data.getName()));
+        result.add(new TextComponent(d + "Name " + ChatColor.RESET + data.getName()));
         result.add(new TextComponent(d + ""));
         result.add(new TextComponent(d + "Owner " + c + playerNameOrElse(data.getOwner(), "N/A")));
         result.add(new TextComponent(d + "Gender " + c + data.getGender().humanName + " " + data.getGender().symbol));

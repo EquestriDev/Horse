@@ -157,7 +157,7 @@ final class Grooming implements Listener {
             }
         } else {
             if (groomingData.wash < 3) {
-                player.sendActionBar(ChatColor.RED + "Clean " + spawned.data.getName() + " first.");
+                player.sendActionBar(ChatColor.RED + "Clean " + spawned.data.getName() + ChatColor.RESET + ChatColor.RED + " first.");
                 return;
             }
             value = tool.activity.getter.apply(groomingData);
@@ -183,59 +183,66 @@ final class Grooming implements Listener {
         }
     }
 
+    private String mask(String fmt, SpawnedHorse spawned, ChatColor... colors) {
+        StringBuilder sb = new StringBuilder(colors[0].toString());
+        for (int i = 1; i < colors.length; i += 1) sb.append(colors[i].toString());
+        String c = sb.toString();
+        return String.format(c + fmt, spawned.data.getName() + ChatColor.RESET + c);
+    }
+
     String successNotification(Player player, SpawnedHorse spawned, Tool tool, int value) {
         switch (tool) {
-        case WATER_BUCKET: return ChatColor.BLUE + "You soak " + spawned.data.getName() + ".";
-        case SHAMPOO: return ChatColor.GREEN + "" + spawned.data.getName() + " is now shampooed.";
-        case SWEAT_SCRAPER: return ChatColor.GOLD + "You use the sweat scraper on " + spawned.data.getName() + ".";
-        case CLIPPER: return ChatColor.DARK_GRAY + "You use the clipper on " + spawned.data.getName() + ".";
+        case WATER_BUCKET:  return mask("You soak %s.", spawned, ChatColor.DARK_BLUE);
+        case SHAMPOO:       return mask("%s is now shampooed.", spawned, ChatColor.GREEN);
+        case SWEAT_SCRAPER: return mask("You use the sweat scraper on %s.", spawned, ChatColor.GOLD);
+        case CLIPPER:       return mask("You use the clipper on %s.", spawned, ChatColor.DARK_GRAY);
         case BRUSH:
             switch (value) {
-            case 0: return ChatColor.BLACK + "You brush " + spawned.data.getName() + " once.";
-            case 1: return ChatColor.DARK_BLUE + "You brush " + spawned.data.getName() + " twice.";
-            case 2: return ChatColor.DARK_AQUA + "You brush " + spawned.data.getName() + " three times.";
-            case 3: return ChatColor.AQUA + "You brush " + spawned.data.getName() + " four times.";
-            case 4: default: return "" + ChatColor.BLUE + ChatColor.BOLD + "You finished brushing " + spawned.data.getName() + ".";
+            case 0:          return mask("You brush %s once.", spawned, ChatColor.BLACK);
+            case 1:          return mask("You brush %s twice.", spawned, ChatColor.DARK_BLUE);
+            case 2:          return mask("You brush %s three times.", spawned, ChatColor.DARK_AQUA);
+            case 3:          return mask("You brush %s four times.", spawned, ChatColor.AQUA);
+            case 4: default: return mask("You finished brushing %s.", spawned, ChatColor.BLUE, ChatColor.BOLD);
             }
         case HOOF_PICK:
             switch (value) {
-            case 0: return ChatColor.BLACK + "You pick the front left hoof of " + spawned.data.getName() + ".";
-            case 1: return ChatColor.DARK_GRAY + "You pick the front right hoof of " + spawned.data.getName() + ".";
-            case 2: return ChatColor.GRAY + "You pick the back right hoof of " + spawned.data.getName() + ".";
-            case 3: default: return "" + ChatColor.WHITE + ChatColor.BOLD + "You picked all the hooves of " + spawned.data.getName() + ".";
+            case 0:          return mask("You pick the front left hoof of %s.", spawned, ChatColor.BLACK);
+            case 1:          return mask("You pick the front right hoof of %s.", spawned, ChatColor.DARK_GRAY);
+            case 2:          return mask("You pick the back right hoof of %s.", spawned, ChatColor.GRAY);
+            case 3: default: return mask("You picked all the hooves of %s.", spawned, ChatColor.WHITE, ChatColor.BOLD);
             }
         case COMB:
             switch (value) {
-            case 0: return ChatColor.BLACK + "You comb " + spawned.data.getName() + " once.";
-            case 1: return ChatColor.DARK_GRAY + "You comb " + spawned.data.getName() + " twice.";
-            case 2: return ChatColor.DARK_GRAY + "You comb " + spawned.data.getName() + " three times.";
-            case 3: return ChatColor.GRAY + "You comb " + spawned.data.getName() + " four times.";
-            case 4: return ChatColor.GRAY + "You comb " + spawned.data.getName() + " five times.";
-            case 5: default: return "" + ChatColor.WHITE + ChatColor.BOLD + "You finished combing " + spawned.data.getName() + ".";
+            case 0:          return mask("You comb %s once.", spawned, ChatColor.BLACK);
+            case 1:          return mask("You comb %s twice.", spawned, ChatColor.DARK_GRAY);
+            case 2:          return mask("You comb %s three times.", spawned, ChatColor.DARK_GRAY);
+            case 3:          return mask("You comb %s four times.", spawned, ChatColor.GRAY);
+            case 4:          return mask("You comb %s five times.", spawned, ChatColor.GRAY);
+            case 5: default: return mask("You finished combing %s.", spawned, ChatColor.WHITE, ChatColor.BOLD);
             }
         case SHEDDING_TOOL:
             switch (value) {
-            case 0: return ChatColor.RED + "You shed " + spawned.data.getName() + " once.";
-            case 1: return ChatColor.GOLD + "You shed " + spawned.data.getName() + " twice.";
-            case 2: default: return "" + ChatColor.YELLOW + ChatColor.BOLD + "You finished shedding " + spawned.data.getName() + ".";
+            case 0: return          mask("You shed %s once.", spawned, ChatColor.RED);
+            case 1: return          mask("You shed %s twice.", spawned, ChatColor.GOLD);
+            case 2: default: return mask("You finished shedding %s.", spawned, ChatColor.GOLD, ChatColor.BOLD);
             }
         case MANE_BRUSH:
             switch (value) {
-            case 0: return ChatColor.DARK_PURPLE + "You brush the mane of " + spawned.data.getName() + ".";
-            case 1: default: return ChatColor.LIGHT_PURPLE + "You brush the tail of " + spawned.data.getName() + ".";
+            case 0:          return mask("You brush the mane of %s.", spawned, ChatColor.DARK_PURPLE);
+            case 1: default: return mask("You brush the tail of %s.", spawned, ChatColor.LIGHT_PURPLE);
             }
         case HOOF_OIL:
             switch (value) {
-            case 0: return ChatColor.BLACK + "You oil the front left hoof of " + spawned.data.getName() + ".";
-            case 1: return ChatColor.BLACK + "You oil the front right hoof of " + spawned.data.getName() + ".";
-            case 2: return ChatColor.BLACK + "You oil the back right hoof of " + spawned.data.getName() + ".";
-            case 3: default: return "" + ChatColor.BLACK + ChatColor.BOLD + "You oiled all the hooves of " + spawned.data.getName() + ".";
+            case 0:          return mask("You oil the front left hoof of %s.", spawned, ChatColor.BLACK);
+            case 1:          return mask("You oil the front right hoof of %s.", spawned, ChatColor.BLACK);
+            case 2:          return mask("You oil the back right hoof of %s.", spawned, ChatColor.BLACK);
+            case 3: default: return mask("You oiled all the hooves of %s.", spawned, ChatColor.BLACK, ChatColor.BOLD);
             }
         case SHOW_SHEEN:
             switch (value) {
-            case 0: return ChatColor.YELLOW + "You apply the show sheen on " + spawned.data.getName() + ".";
-            case 1: return ChatColor.GOLD + "You rub the show sheen on " + spawned.data.getName() + ".";
-            case 2: default: return "" + ChatColor.GOLD + ChatColor.BOLD + spawned.data.getName() + " is now all shiny.";
+            case 0:          return mask("You apply the show sheen on %s.", spawned, ChatColor.YELLOW);
+            case 1:          return mask("You rub the show sheen on %s.", spawned, ChatColor.GOLD);
+            case 2: default: return mask("%s is now all shiny.", spawned, ChatColor.GOLD, ChatColor.BOLD);
             }
         default: throw new IllegalStateException("Unsupported tool: " + tool);
         }

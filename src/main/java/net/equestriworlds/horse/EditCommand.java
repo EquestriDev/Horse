@@ -95,19 +95,28 @@ final class EditCommand extends CommandBase {
         }
         if (args.length == 2 && args[0].equals("randomize")) {
             data.randomize(this.plugin, args[1]);
-            if (data.getId() >= 0) this.plugin.updateHorseEntity(data); // Implies safe to database
+            if (data.getId() >= 0) {
+                this.plugin.getDatabase().updateHorse(data);
+                this.plugin.updateHorseEntity(data);
+            }
             showEditingMenu(player, data);
             return true;
         }
         if (args.length == 1 && args[0].equals("removebrand")) {
             data.setBrand(null);
-            if (data.getId() >= 0) this.plugin.updateHorseEntity(data); // Implies safe to database
+            if (data.getId() >= 0) {
+                this.plugin.getDatabase().updateHorse(data);
+                this.plugin.updateHorseEntity(data);
+            }
             showEditingMenu(player, data);
             return true;
         }
         if (args.length == 1 && args[0].equals("resetgrooming")) {
             data.setGrooming(null);
-            if (data.getId() >= 0) this.plugin.updateHorseEntity(data); // Implies safe to database
+            if (data.getId() >= 0) {
+                this.plugin.getDatabase().updateHorse(data);
+                this.plugin.updateHorseEntity(data);
+            }
             showEditingMenu(player, data);
             return true;
         }
@@ -128,7 +137,10 @@ final class EditCommand extends CommandBase {
             default:
                 throw new CommandException("Invalid preset: " + args[1]);
             }
-            if (data.getId() >= 0) this.plugin.updateHorseEntity(data);
+            if (data.getId() >= 0) {
+                this.plugin.getDatabase().updateHorse(data);
+                this.plugin.updateHorseEntity(data);
+            }
             showEditingMenu(player, data);
             return true;
         }
@@ -345,8 +357,8 @@ final class EditCommand extends CommandBase {
                 }
             } else {
                 // Else just suggest the command to allow editing
-                String cmd = "/ha edit " + field.key + " " + displayValue;
-                cb.append("[" + displayValue + "]").color(valueColor);
+                String cmd = "/ha edit " + field.key + " " + ChatColor.stripColor(displayValue);
+                cb.append("[" + displayValue + valueColor + "]").color(valueColor);
                 cb.event(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, cmd));
                 cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + cmd + "\n" + ChatColor.WHITE + ChatColor.ITALIC + "Set the " + field.name)));
             }

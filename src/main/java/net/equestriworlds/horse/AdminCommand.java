@@ -51,7 +51,7 @@ final class AdminCommand extends CommandBase implements TabExecutor {
             SpawnedHorse spawned = spawnedHorseOf(data);
             double speed = args.length < 2 ? 1.0 : expectDouble(args[1]);
             this.plugin.getDirtyPath().navigate(spawned.getEntity(), player.getLocation(), speed);
-            player.sendMessage("Horse " + data.getName() + " navigating to you.");
+            player.sendMessage("Horse " + ChatColor.stripColor(data.getName()) + " navigating to you.");
             return true;
         }
         case "move": {
@@ -61,7 +61,7 @@ final class AdminCommand extends CommandBase implements TabExecutor {
             SpawnedHorse spawned = spawnedHorseOf(data);
             double speed = args.length < 2 ? 1.0 : expectDouble(args[1]);
             this.plugin.getDirtyPath().moveTowards(spawned.getEntity(), player.getLocation(), speed);
-            player.sendMessage("Horse " + data.getName() + " moving to you.");
+            player.sendMessage("Horse " + ChatColor.stripColor(data.getName()) + " moving to you.");
             return true;
         }
         case "info": {

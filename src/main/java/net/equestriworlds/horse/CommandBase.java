@@ -105,17 +105,14 @@ abstract class CommandBase {
         return spawned;
     }
 
-    String horseNameOf(HorseData data, String[] args) throws CommandException {
-        final String name;
-        if (args.length != 0) {
-            StringBuilder sb = new StringBuilder(args[0]);
-            for (int i = 1; i < args.length; i += 1) sb.append(" ").append(args[i]);
-            name = sb.toString();
-        } else {
-            name = data.getName();
-        }
-        if (name == null || name.isEmpty()) throw new CommandException("Give this horse a name.");
-        return name;
+    String horseNameOf(String[] args) throws CommandException {
+        final String result;
+        StringBuilder sb = new StringBuilder(args[0]);
+        for (int i = 1; i < args.length; i += 1) sb.append(" ").append(args[i]);
+        result = ChatColor.translateAlternateColorCodes('&', sb.toString());
+        if (result.isEmpty()) throw new CommandException("Give this horse a name.");
+        if (ChatColor.stripColor(result).length() > 16) throw new CommandException("This name is too long.");
+        return result;
     }
 
     /**
@@ -136,7 +133,7 @@ abstract class CommandBase {
             if (index >= 1 && index <= playerHorses.size()) return playerHorses.get(index - 1);
         } catch (NumberFormatException nfe) { }
         for (HorseData data: playerHorses) {
-            if (ChatColor.stripColor(data.getName().replace(" ", "")).equalsIgnoreCase(arg)) {
+            if (data.getStrippedName().replace(" ", "").equalsIgnoreCase(arg)) {
                 return data;
             }
         }

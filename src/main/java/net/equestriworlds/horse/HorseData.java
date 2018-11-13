@@ -12,6 +12,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import lombok.Data;
 import lombok.Value;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
@@ -101,7 +102,8 @@ final class HorseData {
 
     @Data
     static final class GroomingData {
-        long cooldown, expiration;
+        transient long cooldown;
+        long expiration;
         int appearance;
         int wash, clip, brush, hoof, comb, shed, hair, oil, sheen;
     }
@@ -120,6 +122,10 @@ final class HorseData {
     double getJumpHeight() {
         double x = this.jump;
         return -0.1817584952 * Math.pow(x, 3) + 3.689713992 * Math.pow(x, 2) + 2.128599134 * x - 0.343930367;
+    }
+
+    String getStrippedName() {
+        return ChatColor.stripColor(this.name);
     }
 
     // --- Entity Properties
