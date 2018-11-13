@@ -38,6 +38,8 @@ final class HorseData {
     private HorseColor color;
     private HorseMarkings markings;
     private double jump, speed;
+    // Health
+    private double body = 4.0; // See BodyCondistionScale
     // Access
     private HashSet<UUID> trusted = new HashSet<>();
     // Optionals
