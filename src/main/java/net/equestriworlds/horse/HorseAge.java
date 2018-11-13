@@ -5,7 +5,8 @@ import lombok.Getter;
 @Getter
 enum HorseAge implements HumanReadable {
     FOAL(-1),
-    ADOLESCENT(0), // Ridable
+    YEARLING(0), // Not ridable
+    ADOLESCENT(0), // Ridable, not breedable
     ADULT(0);
 
     public final String humanName;
