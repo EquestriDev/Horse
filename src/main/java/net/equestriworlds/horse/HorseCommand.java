@@ -69,6 +69,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             return true;
         }
         case "here": case "bring": {
+            if (args.length == 0) return false;
             HorseData data = this.ownedHorseOf(player, args);
             this.plugin.teleportHorse(data, player.getLocation());
             player.sendMessage(ChatColor.GREEN + data.getName() + " teleported to you.");
@@ -215,7 +216,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         case "here":
         case "info":
         case "bring":
-            if (args.length == 2) return tabComplete(args[0], this.plugin.findHorses(player).stream().map(HorseData::getName).map(String::toLowerCase));
+            if (args.length == 2) return tabComplete(args[1], this.plugin.findHorses(player).stream().map(HorseData::getName).map(n -> n.replace(" ", "")));
             return null;
         case "trust":
             if (args.length == 2) return null;

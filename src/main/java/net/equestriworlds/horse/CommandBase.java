@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
+import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.AbstractHorse;
@@ -125,7 +126,7 @@ abstract class CommandBase {
      */
     HorseData ownedHorseOf(Player player, String[] args) throws CommandException {
         StringBuilder sb = new StringBuilder(args[0]);
-        for (int i = 1; i < args.length; i += 1) sb.append(" ").append(args[i]);
+        for (int i = 1; i < args.length; i += 1) sb.append(args[i]);
         String arg = sb.toString();
         List<HorseData> playerHorses = this.plugin.findHorses(player);
         if (playerHorses.isEmpty()) throw new CommandException("You do not own any horses.");
@@ -135,7 +136,7 @@ abstract class CommandBase {
             if (index >= 1 && index <= playerHorses.size()) return playerHorses.get(index - 1);
         } catch (NumberFormatException nfe) { }
         for (HorseData data: playerHorses) {
-            if (data.getName() != null && data.getName().equalsIgnoreCase(arg)) {
+            if (ChatColor.stripColor(data.getName().replace(" ", "")).equalsIgnoreCase(arg)) {
                 return data;
             }
         }
