@@ -175,9 +175,9 @@ final class HorseCommand extends CommandBase implements TabExecutor {
             spawned.data.setBrand(horseBrand);
             this.plugin.getDatabase().updateHorse(spawned.data);
             player.sendMessage(ChatColor.GOLD + spawned.data.getName() + " was branded with " + ChatColor.RESET + horseBrand.getFormat() + ChatColor.RESET + ChatColor.GOLD + " for " + ChatColor.YELLOW + ChatColor.ITALIC + priceFormat + ChatColor.RESET + ChatColor.GOLD + ".");
-            player.playSound(spawned.getEntity().getEyeLocation(), Sound.BLOCK_FIRE_EXTINGUISH, SoundCategory.NEUTRAL, 0.5f, 1.0f);
-            player.playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_HURT, SoundCategory.NEUTRAL, 0.5f, 1.0f);
-            player.spawnParticle(Particle.LAVA, spawned.getEntity().getLocation(), 32, 0.25, 0.0, 0.25, 0.0);
+            player.getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.BLOCK_FIRE_EXTINGUISH, SoundCategory.NEUTRAL, 0.5f, 1.0f);
+            player.getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_HURT, SoundCategory.NEUTRAL, 0.5f, 1.0f);
+            player.getWorld().spawnParticle(Particle.LAVA, spawned.getEntity().getLocation(), 32, 0.25, 0.0, 0.25, 0.0);
             return true;
         }
         default: return false;
