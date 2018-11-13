@@ -33,6 +33,10 @@ final class SpawnedHorse {
         return this.entity != null && this.entity.equals(otherEntity);
     }
 
+    boolean isCrosstied() {
+        return this.crosstie != null;
+    }
+
     void setupCrosstie(Crosstie newCrosstie) {
         if (this.crosstie != null) throw new IllegalStateException("crosstie already set");
         if (newCrosstie.isValid()) throw new IllegalStateException("crosstie already validated");
@@ -40,6 +44,7 @@ final class SpawnedHorse {
         this.crosstie.setValid(true);
         if (!this.crosstie.check()) throw new IllegalStateException("new crosstie immediately fails check");
         this.entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(0.0);
+        this.entity.setAI(false);
     }
 
     void removeCrosstie() {
@@ -48,10 +53,7 @@ final class SpawnedHorse {
         this.crosstie = null;
         if (this.entity != null && this.entity.isValid()) {
             this.entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(data.getSpeed());
+            this.entity.setAI(true);
         }
-    }
-
-    double effectiveSpeed() {
-        return crosstie == null ? this.data.getSpeed() : 0.0;
     }
 }

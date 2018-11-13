@@ -16,6 +16,8 @@ import lombok.Getter;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Location;
 import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Bat;
@@ -323,6 +325,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
             spawned.removeCrosstie();
             spawned.data.setCrosstie(null);
             this.database.updateHorse(spawned.data);
+            spawned.getEntity().getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.BLOCK_IRON_DOOR_OPEN, SoundCategory.NEUTRAL, 1.0f, 2.0f);
         }
         HorseData.GroomingData groomingData = spawned.data.getGrooming();
         if (groomingData != null) {

@@ -193,8 +193,7 @@ final class HorseListener implements Listener {
                 spawned.setupCrosstie(crosstie);
                 // Cancel event and turn player
                 event.setCancelled(true);
-                Location playerLocation = player.getLocation();
-                player.teleport(playerLocation);
+                player.teleport(player.getLocation());
             }
         }
     }
@@ -224,6 +223,7 @@ final class HorseListener implements Listener {
                 crosstie.setHolder(null);
                 crosstie.setHitchB((LeashHitch)event.getLeashHolder());
                 if (crosstie.check()) spawned.data.setCrosstie(crosstie.serialize());
+                entity.getWorld().playSound(entity.getEyeLocation(), Sound.BLOCK_IRON_DOOR_CLOSE, SoundCategory.NEUTRAL, 1.0f, 2.0f);
             }
         }
     }
