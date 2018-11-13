@@ -45,7 +45,8 @@ final class EditCommand extends CommandBase {
     private final EditField brand = new EditField<HorseBrand>("brand", "Brand", null, null, null);
     private final EditField jump = new EditField<Double>("jump", "Jump", HorseData::getJump, HorseData::setJump, Double::parseDouble);
     private final EditField speed = new EditField<Double>("speed", "Speed", HorseData::getSpeed, HorseData::setSpeed, Double::parseDouble);
-    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.jump, this.speed);
+    private final EditField grooming = new EditField<Double>("grooming", "Grooming", null, null, null);
+    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.jump, this.speed, this.grooming);
     private final List<ChatColor> colorful = Arrays.asList(ChatColor.AQUA, ChatColor.BLUE, ChatColor.GOLD, ChatColor.GREEN, ChatColor.LIGHT_PURPLE, ChatColor.RED, ChatColor.YELLOW);
     private int colorfulIndex;
     private final List<String> dice = Arrays.asList("\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685");
@@ -94,12 +95,19 @@ final class EditCommand extends CommandBase {
         }
         if (args.length == 2 && args[0].equals("randomize")) {
             data.randomize(this.plugin, args[1]);
-            if (data.getId() >= 0) this.plugin.updateHorseEntity(data);
+            if (data.getId() >= 0) this.plugin.updateHorseEntity(data); // Implies safe to database
             showEditingMenu(player, data);
             return true;
         }
         if (args.length == 1 && args[0].equals("removebrand")) {
             data.setBrand(null);
+            if (data.getId() >= 0) this.plugin.updateHorseEntity(data); // Implies safe to database
+            showEditingMenu(player, data);
+            return true;
+        }
+        if (args.length == 1 && args[0].equals("resetgrooming")) {
+            data.setGrooming(null);
+            if (data.getId() >= 0) this.plugin.updateHorseEntity(data); // Implies safe to database
             showEditingMenu(player, data);
             return true;
         }
@@ -229,6 +237,18 @@ final class EditCommand extends CommandBase {
                     cb.append("[Remove]").color(ChatColor.RED)
                         .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit removebrand"))
                         .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.RED + "Remove this brand from this horse.")));
+                } else {
+                    printLine = false;
+                }
+            } else if (field == this.grooming) {
+                HorseData.GroomingData groomingData = data.getGrooming();
+                if (groomingData != null) {
+                    printLine = true;
+                    cb.append("Grooming").color(ChatColor.GOLD).bold(true).italic(true).append(" ").reset();
+                    cb.append("" + groomingData.appearance).append(" ").reset();
+                    cb.append("[Reset]").color(ChatColor.RED)
+                        .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit resetgrooming"))
+                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.RED + "Reset the grooming status of this horse.")));
                 } else {
                     printLine = false;
                 }

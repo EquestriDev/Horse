@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Bat;
@@ -41,6 +42,7 @@ import org.bukkit.potion.PotionEffectType;
 public final class HorsePlugin extends JavaPlugin implements Runnable {
     // --- Constants
     public static final String SCOREBOARD_MARKER = "equestriworlds.horse";
+    public static final String ITEM_MARKER = "equestriworlds.item";
     // --- Horse Data
     private HorseDatabase database;
     private List<HorseData> horses;
@@ -52,9 +54,11 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     // --- Features
     private HorseListener horseListener;
     private Gaits gaits;
-    private List<String> horseNames;
-    private Map<UUID, HorseBrand> horseBrands;
+    private Grooming grooming;
     private Economy economy;
+    // Data
+    private Map<UUID, HorseBrand> horseBrands;
+    private List<String> horseNames; // lazy
     // --- Dirty
     private net.equestriworlds.horse.dirty.NBT dirtyNBT = new net.equestriworlds.horse.dirty.NBT();
     private net.equestriworlds.horse.dirty.Path dirtyPath = new net.equestriworlds.horse.dirty.Path();
@@ -78,17 +82,20 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         for (HorseBrand horseBrand: this.database.loadHorseBrands()) {
             this.horseBrands.put(horseBrand.getOwner(), horseBrand);
         }
-        // Initialize members
-        this.horseListener = new HorseListener(this);
+        // Commands
         this.horseCommand = new HorseCommand(this);
         this.adminCommand = new AdminCommand(this);
         this.editCommand = new EditCommand(this);
+        // Feature listeners
+        this.horseListener = new HorseListener(this);
         this.gaits = new Gaits(this);
+        this.grooming = new Grooming(this);
         // Register events and commands
-        getServer().getPluginManager().registerEvents(this.horseListener, this);
-        getServer().getPluginManager().registerEvents(this.gaits, this);
         getCommand("horse").setExecutor(this.horseCommand);
         getCommand("horseadmin").setExecutor(this.adminCommand);
+        getServer().getPluginManager().registerEvents(this.horseListener, this);
+        getServer().getPluginManager().registerEvents(this.gaits, this);
+        getServer().getPluginManager().registerEvents(this.grooming, this);
         // Start tick timer
         getServer().getScheduler().runTaskTimer(this, this, 1L, 1L);
         // Setup economy one tick later to make sure the unknown economy plugin (NOT Vault) was loaded.
@@ -221,6 +228,8 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
      * This may respawn the horse if the breed changed.  A horse breed
      * does not usually change unless an admin makes it so via the
      * EditCommand.
+     *
+     * This also saves to database as a side effect.
      */
     SpawnedHorse updateHorseEntity(HorseData data) {
         SpawnedHorse spawned = this.findSpawnedHorse(data);
@@ -314,6 +323,17 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
             spawned.removeCrosstie();
             spawned.data.setCrosstie(null);
             this.database.updateHorse(spawned.data);
+        }
+        HorseData.GroomingData groomingData = spawned.data.getGrooming();
+        if (groomingData != null) {
+            if (groomingData.expiration < System.currentTimeMillis()) {
+                spawned.data.setGrooming(null);
+                this.database.updateHorse(spawned.data);
+            } else if (groomingData.wash == 1 && (ticksLived % 8 == 0)) {
+                spawned.getEntity().getWorld().spawnParticle(Particle.WATER_DROP, spawned.getEntity().getEyeLocation(), 8, 0.5, 0.5, 0.5, 0.0);
+            } else if (groomingData.wash == 2 && (ticksLived % 8 == 0)) {
+                spawned.getEntity().getWorld().spawnParticle(Particle.CLOUD, spawned.getEntity().getEyeLocation(), 8, 0.5, 0.5, 0.5, 0.0);
+            }
         }
     }
 

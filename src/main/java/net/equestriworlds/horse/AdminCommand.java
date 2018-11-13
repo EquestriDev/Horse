@@ -1,16 +1,20 @@
 package net.equestriworlds.horse;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 final class AdminCommand extends CommandBase implements TabExecutor {
-    private final List<String> commands = Arrays.asList("edit", "new", "move", "info", "deletebrand");
+    private final List<String> commands = Arrays.asList("edit", "new", "move", "info", "deletebrand", "spawntool");
 
     AdminCommand(HorsePlugin plugin) {
         super(plugin);
@@ -63,7 +67,8 @@ final class AdminCommand extends CommandBase implements TabExecutor {
         case "info": {
             if (args.length != 1) return false;
             HorseData data = horseWithId(args[0]);
-            sender.sendMessage("" + data);
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            sender.sendMessage("" + gson.toJson(data));
             return true;
         }
         case "deletebrand": {
@@ -76,6 +81,35 @@ final class AdminCommand extends CommandBase implements TabExecutor {
             sender.sendMessage("Horse brand of " + name + " deleted: " + horseBrand.getFormat() + ChatColor.RESET + ".");
             return true;
         }
+        case "spawntool": {
+            if (args.length != 1 & args.length != 2) return false;
+            Grooming.Tool tool;
+            if (args[0].equals("all")) {
+                tool = null;
+            } else {
+                try {
+                    tool = Grooming.Tool.valueOf(args[0].toUpperCase());
+                } catch (IllegalArgumentException iae) {
+                    throw new CommandException("Unknown tool: " + args[0] + ".");
+                }
+            }
+            Player target;
+            if (args.length >= 2) {
+                target = playerWithName(args[1]);
+            } else if (sender instanceof Player) {
+                target = (Player)sender;
+            } else {
+                throw new CommandException("Player expected");
+            }
+            for (Grooming.Tool itool: tool == null ? Arrays.asList(Grooming.Tool.values()) : Arrays.asList(tool)) {
+                ItemStack item = this.plugin.getGrooming().spawnTool(itool);
+                for (ItemStack drop: target.getInventory().addItem(item).values()) {
+                    target.getWorld().dropItem(target.getEyeLocation(), drop);
+                }
+                sender.sendMessage("Tool " + itool.humanName + " given to " + target.getName());
+            }
+            return true;
+        }
         default:
             return false;
         }
@@ -84,6 +118,12 @@ final class AdminCommand extends CommandBase implements TabExecutor {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) return tabComplete(args[0], this.commands);
+        switch (args[0]) {
+        case "spawntool":
+            if (args.length == 2) return tabComplete(args[1], Stream.concat(Arrays.stream(Grooming.Tool.values()).map(Enum::name).map(String::toLowerCase), Stream.of("all")));
+            break;
+        default: break;
+        }
         return null;
     }
 }

@@ -46,7 +46,7 @@ final class HorseData {
     CrosstieData crosstie;
     HorseBrand brand;
     Breeding breeding;
-    Grooming grooming;
+    GroomingData grooming;
     Health health;
 
     @Value
@@ -83,26 +83,25 @@ final class HorseData {
         public final List<Integer> hitchB;
     }
 
-    enum BreedingStage {
-        FOAL,
-        RIDABLE,
-        BREEDABLE,
-        PREGNANT,
-        MARE_RECOVERY,
-        STALLION_RECOVERY,
-        ABORT_RECOVERY;
-    }
-
     @Data
     static final class Breeding {
-        BreedingStage stage;
-        int pregnancyTime;
-        int partnerId;
+        enum BreedingStage {
+            READY,
+            PREGNANT,
+            MARE_RECOVERY,
+            STALLION_RECOVERY,
+            ABORT_RECOVERY;
+        }
+        BreedingStage stage = BreedingStage.READY;
+        long breedingTime;
+        int partnerId = -1;
     }
 
     @Data
-    static final class Grooming {
+    static final class GroomingData {
+        long cooldown, expiration;
         int appearance;
+        int wash, clip, brush, hoof, comb, shed, hair, oil, sheen;
     }
 
     @Data
