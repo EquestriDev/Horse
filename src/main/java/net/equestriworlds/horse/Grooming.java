@@ -140,6 +140,10 @@ final class Grooming implements Listener {
         boolean success;
         final int value;
         if (tool.activity == Activity.WASH) {
+            if (groomingData.wash >= 3) {
+                player.sendActionBar(ChatColor.RED + spawned.data.getName() + ChatColor.RESET + ChatColor.RED + " is already clean.");
+                return;
+            }
             value = groomingData.wash;
             if (tool == Tool.WATER_BUCKET && value == 0) {
                 item.setType(Material.BUCKET);
@@ -319,9 +323,9 @@ final class Grooming implements Listener {
 
     String failNotification(Player player, SpawnedHorse spawned, Tool tool, int value) {
         switch (tool) {
-        case WATER_BUCKET: return "Already soaked.";
-        case SHAMPOO: return "Already shampooed.";
-        case SWEAT_SCRAPER: return "Already scraped.";
+        case WATER_BUCKET: return "Soak, then shampoo, then scrape.";
+        case SHAMPOO: return "Soak, then shampoo, then scrape.";
+        case SWEAT_SCRAPER: return "Soak, then shampoo, then scrape.";
         case CLIPPER: return "Already clipped.";
         case BRUSH: return "Already brushed.";
         case HOOF_PICK: return "Already picked hooves.";
