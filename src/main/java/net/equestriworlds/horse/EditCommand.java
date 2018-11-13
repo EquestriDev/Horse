@@ -208,7 +208,11 @@ final class EditCommand extends CommandBase {
         if (field.converter == null) {
             field.setter.accept(data, value);
         } else {
-            field.setter.accept(data, field.converter.apply(value));
+            try {
+                field.setter.accept(data, field.converter.apply(value));
+            } catch (Exception e) {
+                throw new CommandException("Invalid value: " + value);
+            }
         }
         // Update markings and color if the breed changed
         if (field == this.breed) {
