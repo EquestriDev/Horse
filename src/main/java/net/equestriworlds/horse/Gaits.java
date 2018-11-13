@@ -3,7 +3,10 @@ package net.equestriworlds.horse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.md_5.bungee.api.ChatColor;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.attribute.Attribute;
@@ -48,19 +51,34 @@ final class Gaits implements Listener {
         TROT  (0.5,  "" + ChatColor.YELLOW + ChatColor.ITALIC),
         CANTER(0.75, "" + ChatColor.GOLD   + ChatColor.ITALIC),
         GALLOP(1.0,  "" + ChatColor.GOLD   + ChatColor.ITALIC + ChatColor.BOLD);
+
         public final String humanName;
         public final double factor;
         public final String prefix;
+
         Gait(double factor, String prefix) {
             this.humanName = HumanReadable.enumToHuman(this);
             this.factor = factor;
             this.prefix = prefix;
         }
+
         Gait next() {
-            int o = this.ordinal();
+            int o = this.ordinal() + 1;
             Gait[] v = this.values();
-            return v[Math.min(v.length - 1, o + 1)];
+            if (o >= v.length) return null;
+            return v[o];
         }
+
+        Gait prev() {
+            int o = this.ordinal() - 1;
+            if (o < 0) return null;
+            Gait[] v = this.values();
+            return v[o];
+        }
+    }
+
+    enum Click {
+        LEFT, RIGHT;
     }
 
     // --- Mount events
@@ -76,6 +94,7 @@ final class Gaits implements Listener {
         gaitMetaOf(player).gait = Gait.HALT;
         entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(0.0);
         player.sendTitle("", "" + Gait.HALT.prefix + Gait.HALT.humanName, 0, 20, 40);
+        Bukkit.getScheduler().runTaskLater(this.plugin, () -> player.sendActionBar("Left or right click with a stick to change speed."), 20);
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
@@ -87,7 +106,9 @@ final class Gaits implements Listener {
         if (spawned == null) return;
         Player player = (Player)event.getEntity();
         removeGaitMeta(player);
-        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(spawned.effectiveSpeed());
+        if (!spawned.isCrosstied()) {
+            entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(spawned.data.getSpeed());
+        }
     }
 
     // Whip events
@@ -106,13 +127,18 @@ final class Gaits implements Listener {
         SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
         if (spawned == null) return;
         // Use
-        this.onUseCrop(player, spawned);
+        this.onUseCrop(player, spawned, Click.LEFT);
         event.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = false, priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
+        Click click;
+        switch (event.getAction()) {
+        case LEFT_CLICK_AIR: case LEFT_CLICK_BLOCK: click = Click.LEFT; break;
+        case RIGHT_CLICK_AIR: case RIGHT_CLICK_BLOCK: click = Click.RIGHT; break;
+        default: return;
+        }
         if (event.getHand() != EquipmentSlot.HAND) return;
         Player player = event.getPlayer();
         // Item
@@ -124,7 +150,7 @@ final class Gaits implements Listener {
         SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
         if (spawned == null) return;
         // Use
-        this.onUseCrop(player, spawned);
+        this.onUseCrop(player, spawned, click);
         event.setCancelled(true);
     }
 
@@ -134,17 +160,30 @@ final class Gaits implements Listener {
      * increase, the horse speed set accordingly, and an audiovisual
      * cue be played.
      */
-    private void onUseCrop(Player player, SpawnedHorse spawned) {
+    private void onUseCrop(Player player, SpawnedHorse spawned, Click click) {
+        if (spawned.isCrosstied()) return;
         GaitMeta meta = gaitMetaOf(player);
         long now = System.nanoTime();
-        if (meta.gait == Gait.GALLOP) return;
         if (meta.cooldown > now) return;
+        Gait newGait = click == Click.LEFT ? meta.gait.next() : meta.gait.prev();
+        if (newGait == null) return;
         meta.cooldown = now + 1000000000; // 1 Second
-        meta.gait = meta.gait.next();
-        spawned.entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(spawned.effectiveSpeed() * meta.gait.factor);
+        meta.gait = newGait;
+        spawned.entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(spawned.data.getSpeed() * meta.gait.factor);
         // Effects
         player.sendTitle("", "" + meta.gait.prefix + meta.gait.humanName, 0, 20, 40);
-        player.getWorld().playSound(player.getEyeLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.5f, 1.2f);
+        if (click == Click.LEFT) {
+            player.getWorld().playSound(player.getEyeLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.5f, 1.2f);
+            Location l = player.getEyeLocation();
+            l = l.add(l.getDirection().multiply(2.0));
+            player.getWorld().spawnParticle(Particle.SWEEP_ATTACK, l, 1, 0.0, 0.0, 0.0, 0.0);
+        } else {
+            player.getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_AMBIENT, SoundCategory.NEUTRAL, 1.0f, 0.9f);
+            player.getWorld().playSound(spawned.getEntity().getLocation(), Sound.ENTITY_HORSE_LAND, SoundCategory.NEUTRAL, 0.5f, 0.8f);
+            Location l = spawned.getEntity().getLocation();
+            l = l.add(l.getDirection().multiply(2.0)).add(0, 0.5, 0);
+            player.getWorld().spawnParticle(Particle.SMOKE_LARGE, l, 8, 0.4, 0.0, 0.4, 0.1);
+        }
     }
 
     // --- Metadata
