@@ -277,7 +277,11 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         ArrayList<BaseComponent> result = new ArrayList<>();
         result.add(new TextComponent(d + "Name " + ChatColor.RESET + data.getName()));
         result.add(new TextComponent(d + ""));
-        result.add(new TextComponent(d + "Owner " + c + playerNameOrElse(data.getOwner(), "N/A")));
+        if (data.getOwner() == null) {
+            result.add(new TextComponent(d + "Owner " + c + ChatColor.ITALIC + "Unclaimed"));
+        } else {
+            result.add(new TextComponent(d + "Owner " + c + playerNameOrElse(data.getOwner(), "N/A")));
+        }
         result.add(new TextComponent(d + "Gender " + c + data.getGender().humanName + " " + data.getGender().symbol));
         result.add(new TextComponent(d + "Age " + c + data.getAge().humanName));
         if (data.getBrand() != null) result.add(new TextComponent(d + "Brand " + c + data.getBrand().getFormat()));
