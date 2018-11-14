@@ -169,7 +169,7 @@ final class EditCommand extends CommandBase {
      * session, or for a field which does not yield a list of possible
      * values and the corresponding CommandException will be thrown.
      *
-     * @see EditCommand#listPossibleValues()
+     * @see EditCommand#listPossibleValues(HorseData, EditField)
      */
     private boolean onEditCommand(Player player, String key) throws CommandException {
         EditField field = editFieldOf(key);
