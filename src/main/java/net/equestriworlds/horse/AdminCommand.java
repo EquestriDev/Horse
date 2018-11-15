@@ -14,7 +14,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 final class AdminCommand extends CommandBase implements TabExecutor {
-    private final List<String> commands = Arrays.asList("edit", "new", "move", "info", "deletebrand", "spawntool");
+    private final List<String> commands = Arrays.asList("edit", "new", "move", "info", "deletebrand", "spawntool", "spawnfeed");
 
     AdminCommand(HorsePlugin plugin) {
         super(plugin);
@@ -68,7 +68,7 @@ final class AdminCommand extends CommandBase implements TabExecutor {
             if (args.length != 1) return false;
             HorseData data = horseWithId(args[0]);
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            sender.sendMessage("" + gson.toJson(data));
+            sender.sendMessage(ChatColor.stripColor(gson.toJson(data)));
             return true;
         }
         case "deletebrand": {
@@ -82,7 +82,7 @@ final class AdminCommand extends CommandBase implements TabExecutor {
             return true;
         }
         case "spawntool": {
-            if (args.length != 1 & args.length != 2) return false;
+            if (args.length != 1 && args.length != 2) return false;
             Grooming.Tool tool;
             if (args[0].equals("all")) {
                 tool = null;
@@ -110,6 +110,37 @@ final class AdminCommand extends CommandBase implements TabExecutor {
             }
             return true;
         }
+        case "spawnfeed": {
+            if (args.length < 1 || args.length > 3) return false;
+            Feeding.Feed feed;
+            if (args[0].equals("all")) {
+                feed = null;
+            } else {
+                try {
+                    feed = Feeding.Feed.valueOf(args[0].toUpperCase());
+                } catch (IllegalArgumentException iae) {
+                    throw new CommandException("Unknown feed: " + args[0] + ".");
+                }
+            }
+            int amount = 16;
+            if (args.length >= 2) amount = expectInt(args[1]);
+            Player target;
+            if (args.length >= 3) {
+                target = playerWithName(args[2]);
+            } else if (sender instanceof Player) {
+                target = (Player)sender;
+            } else {
+                throw new CommandException("Player expected");
+            }
+            for (Feeding.Feed ifeed: feed == null ? Arrays.asList(Feeding.Feed.values()) : Arrays.asList(feed)) {
+                ItemStack item = this.plugin.getFeeding().spawnFeed(ifeed, amount);
+                for (ItemStack drop: target.getInventory().addItem(item).values()) {
+                    target.getWorld().dropItem(target.getEyeLocation(), drop);
+                }
+                sender.sendMessage("Feed " + amount + "x" + ifeed.humanName + " given to " + target.getName() + ".");
+            }
+            return true;
+        }
         default:
             return false;
         }
@@ -121,6 +152,9 @@ final class AdminCommand extends CommandBase implements TabExecutor {
         switch (args[0]) {
         case "spawntool":
             if (args.length == 2) return tabComplete(args[1], Stream.concat(Arrays.stream(Grooming.Tool.values()).map(Enum::name).map(String::toLowerCase), Stream.of("all")));
+            break;
+        case "spawnfeed":
+            if (args.length == 2) return tabComplete(args[1], Stream.concat(Arrays.stream(Feeding.Feed.values()).map(Enum::name).map(String::toLowerCase), Stream.of("all")));
             break;
         default: break;
         }

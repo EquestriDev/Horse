@@ -16,17 +16,20 @@ enum BodyConditionScale implements HumanReadable {
     VERY_OBESE (9);
 
     public final String humanName;
-    public final double score;
+    public final int score;
 
     BodyConditionScale(int score) {
         this.humanName = HumanReadable.enumToHuman(this);
-        this.score = (double)score;
+        this.score = score;
     }
 
     static BodyConditionScale of(double body) {
         BodyConditionScale[] vs = values();
-        for (int i = vs.length - 1; i >= 0; i -= 1) {
-            if (body >= vs[i].score) return vs[i];
+        int bodyInt = (int)Math.floor(body);
+        if (bodyInt < 0) return EXTREMELY_UNDERWEIGHT;
+        if (bodyInt > 9) return VERY_OBESE;
+        for (BodyConditionScale scale: values()) {
+            if (bodyInt == scale.score) return scale;
         }
         return EXTREMELY_UNDERWEIGHT;
     }

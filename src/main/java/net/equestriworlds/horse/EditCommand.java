@@ -1,5 +1,6 @@
 package net.equestriworlds.horse;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,8 +46,12 @@ final class EditCommand extends CommandBase {
     private final EditField brand = new EditField<HorseBrand>("brand", "Brand", null, null, null);
     private final EditField jump = new EditField<Double>("jump", "Jump", HorseData::getJump, HorseData::setJump, Double::parseDouble);
     private final EditField speed = new EditField<Double>("speed", "Speed", HorseData::getSpeed, HorseData::setSpeed, Double::parseDouble);
+    private final EditField presets = new EditField("presets", "Presets", null, null, null);
+    private final EditField<BodyConditionScale> body = new EditField<>("body", "Body", HorseData::getBodyCondition, HorseData::setBodyCondition, BodyConditionScale::valueOf);
     private final EditField grooming = new EditField<Double>("grooming", "Grooming", null, null, null);
-    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.jump, this.speed, this.grooming);
+    private final EditField<Boolean> hungry = new EditField<>("hungry", "Hungry", HorseData::isHungry, HorseData::setHungry, Boolean::valueOf);
+    private final EditField<Boolean> thirsty = new EditField<>("thirsty", "Thirsty", HorseData::isThirsty, HorseData::setThirsty, Boolean::valueOf);
+    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.body, this.jump, this.speed, this.presets, this.grooming, this.hungry, this.thirsty);
     private final List<ChatColor> colorful = Arrays.asList(ChatColor.AQUA, ChatColor.BLUE, ChatColor.GOLD, ChatColor.GREEN, ChatColor.LIGHT_PURPLE, ChatColor.RED, ChatColor.YELLOW);
     private int colorfulIndex;
     private final List<String> dice = Arrays.asList("\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685");
@@ -89,6 +94,7 @@ final class EditCommand extends CommandBase {
         String value;
         if (args.length == 1 && args[0].equals("spawn")) {
             if (data.getId() >= 0) throw new CommandException("Horse already exists.");
+            data.setBorn(Instant.now().getEpochSecond());
             this.plugin.addHorse(data);
             this.plugin.spawnHorse(data, player.getLocation());
             return true;
@@ -176,7 +182,7 @@ final class EditCommand extends CommandBase {
         HorseData data = editingSessionOf(player).data;
         List<Object> values = listPossibleValues(data, field);
         if (values == null) throw new CommandException("Not possible values for " + field.name);
-        ComponentBuilder cb = new ComponentBuilder("Select:");
+        ComponentBuilder cb = new ComponentBuilder("Select " + field.name + ":");
         cb.color(ChatColor.GOLD).bold(true);
         int i = 0;
         for (Object o: values) {
@@ -268,6 +274,8 @@ final class EditCommand extends CommandBase {
                 } else {
                     printLine = false;
                 }
+            } else if (field == this.presets) {
+                printLine = presetsEditField(data, field, cb);
             } else {
                 printLine = standardEditField(data, field, cb);
             }
@@ -275,28 +283,6 @@ final class EditCommand extends CommandBase {
                 player.spigot().sendMessage(cb.create());
                 cb = null;
             }
-        }
-        // Presets
-        {
-            cb = new ComponentBuilder("");
-            cb.append("Presets").color(ChatColor.DARK_GRAY);
-            cb.append("  ").reset();
-            ChatColor valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
-            cb.append("[Hunter]").color(valueColor)
-                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset hunter"))
-                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Hunter")));
-            cb.append(" ").reset();
-            valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
-            cb.append("[Dressage]").color(valueColor)
-                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset dressage"))
-                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Dressage")));
-            cb.append(" ").reset();
-            valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
-            cb.append("[Max]").color(valueColor)
-                .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset max"))
-                .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Maximum")));
-            player.spigot().sendMessage(cb.create());
-            cb = null;
         }
         if (data.getId() < 0) {
             cb = new ComponentBuilder("New Horse").color(ChatColor.DARK_GRAY);
@@ -314,11 +300,13 @@ final class EditCommand extends CommandBase {
         if (o == null) return false;
         String displayValue = displayValue(data, field, o);
         cb.append(field.name).color(ChatColor.GOLD).bold(true).italic(true);
-        cb.append(" ").reset();
-        // Randomize
-        cb.append("[" + this.dice.get(ThreadLocalRandom.current().nextInt(this.dice.size())) + "]").color(ChatColor.GREEN); // dice
-        cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit randomize " + field.key));
-        cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "Randomize " + field.name)));
+        if (field != this.hungry && field != this.thirsty) {
+            cb.append(" ").reset();
+            // Randomize
+            cb.append("[" + this.dice.get(ThreadLocalRandom.current().nextInt(this.dice.size())) + "]").color(ChatColor.GREEN); // dice
+            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit randomize " + field.key));
+            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "Randomize " + field.name)));
+        }
         cb.append(" ").reset();
         boolean adjustButtons = false;
         boolean slideButtons = false;
@@ -330,11 +318,15 @@ final class EditCommand extends CommandBase {
         }
         // Minus button
         if (adjustButtons) {
-            Double newValue = Math.max(0.0, (Double)o - 0.01);
-            cb.append("-").color(ChatColor.RED).bold(true);
-            String cmd = "/ha edit " + field.key + " " + String.format("%.02f", newValue);
-            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
-            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.DARK_GRAY + "Reduce " + field.name)));
+            for (int i = 0; i < 2; i += 1) {
+                double dec = i == 0 ? 0.1 : 0.01;
+                ChatColor adjustColor = i == 0 ? ChatColor.DARK_RED : ChatColor.RED;
+                double newValue = Math.max(0.0, (Double)o - dec);
+                cb.append("-").color(adjustColor).bold(true);
+                String cmd = "/ha edit " + field.key + " " + String.format("%.02f", newValue);
+                cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
+                cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(adjustColor + "Reduce " + field.name + String.format(" by %.2f.", dec))));
+            }
         } else if (slideButtons) {
             int valueIndex = Math.max(0, possibleValues.indexOf(o));
             valueIndex -= 1;
@@ -368,11 +360,15 @@ final class EditCommand extends CommandBase {
             }
         }
         if (adjustButtons) {
-            Double newValue = Math.max(0.0, (Double)o + 0.01);
-            cb.append("+").color(ChatColor.GREEN).bold(true);
-            String cmd = "/ha edit " + field.key + " " + String.format("%.02f", newValue);
-            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
-            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.DARK_GRAY + "Increase " + field.name)));
+            for (int i = 0; i < 2; i += 1) {
+                double inc = i == 0 ? 0.01 : 0.1;
+                ChatColor adjustColor = i == 0 ? ChatColor.DARK_GREEN : ChatColor.GREEN;
+                double newValue = Math.max(0.0, (Double)o + inc);
+                String cmd = "/ha edit " + field.key + " " + String.format("%.02f", newValue);
+                cb.append("+").color(adjustColor).bold(true);
+                cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
+                cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(adjustColor + "Increase " + field.name + String.format(" by %.2f.", inc))));
+            }
         } else if (slideButtons) {
             int valueIndex = Math.max(0, possibleValues.indexOf(o));
             valueIndex = (valueIndex + 1) % possibleValues.size();
@@ -398,6 +394,26 @@ final class EditCommand extends CommandBase {
         return true;
     }
 
+    boolean presetsEditField(HorseData data, EditField field, ComponentBuilder cb) {
+        cb.append("Presets").color(ChatColor.DARK_GRAY);
+        cb.append("  ").reset();
+        ChatColor valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
+        cb.append("[Hunter]").color(valueColor)
+            .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset hunter"))
+            .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Hunter")));
+        cb.append(" ").reset();
+        valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
+        cb.append("[Dressage]").color(valueColor)
+            .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset dressage"))
+            .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Dressage")));
+        cb.append(" ").reset();
+        valueColor = colorful.get(this.colorfulIndex++ % colorful.size());
+        cb.append("[Max]").color(valueColor)
+            .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit preset max"))
+            .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(valueColor + "Preset Maximum")));
+        return true;
+    }
+
     // --- Utility
 
     String displayValue(HorseData data, EditField field, Object o) {
@@ -412,6 +428,8 @@ final class EditCommand extends CommandBase {
             return "" + o;
         } else if (o instanceof Number) {
             return String.format("%.02f", ((Number)o).doubleValue());
+        } else if (o instanceof Boolean) {
+            return (boolean)o ? "Yes" : "No";
         } else {
             return "" + o;
         }
@@ -421,8 +439,11 @@ final class EditCommand extends CommandBase {
         if (field == this.gender)   return Arrays.asList(HorseGender.values());
         if (field == this.age)      return Arrays.asList(HorseAge.values());
         if (field == this.breed)    return Arrays.asList(HorseBreed.values());
+        if (field == this.body)     return Arrays.asList(BodyConditionScale.values());
         if (field == this.color)    return new ArrayList(data.getBreed().colors);
         if (field == this.markings) return new ArrayList(data.getBreed().markings);
+        if (field == this.hungry)   return Arrays.asList(true, false);
+        if (field == this.thirsty)  return Arrays.asList(true, false);
         return null;
     }
 

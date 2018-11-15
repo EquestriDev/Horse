@@ -29,7 +29,8 @@ commands:
       /ha new - Edit new horse
       /ha edit - Edit existing horse
       /ha deletebrand <owner> - Delete horse brand
-      /ha spawntool <tool|all> [player] - Spawn horse tool
+      /ha spawntool <tool|all> [player] - Spawn horse tool.
+      /ha spawnfeed <feed|all> [amount] [player] - Spawn horse feed.
 permissions:
   horse.horse:
     description: Use /h

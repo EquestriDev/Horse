@@ -105,12 +105,16 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         case "follow": {
             if (args.length != 0) return false;
             UUID playerId = player.getUniqueId();
+            int followed = 0;
             for (SpawnedHorse spawned: nearbyAccessibleHorsesOf(player)) {
                 spawned.setFollowing(playerId);
+                followed += 1;
                 player.sendMessage(ChatColor.GOLD + spawned.data.getName() + ChatColor.RESET + ChatColor.GOLD + " is now following you.");
                 player.playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_AMBIENT, SoundCategory.NEUTRAL, 0.5f, 1.0f);
                 player.spawnParticle(Particle.VILLAGER_HAPPY, spawned.getEntity().getEyeLocation(), 8, 0.5, 0.5, 0.5, 0.0);
             }
+            player.getWorld().playSound(player.getEyeLocation(), Sound.ENTITY_GHAST_SCREAM, SoundCategory.PLAYERS, 0.1f, 1.7f);
+            if (followed == 0) throw new CommandException("No horse can hear you.");
             return true;
         }
         case "unfollow": {
@@ -290,6 +294,7 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         if (data.getColor() != null) result.add(new TextComponent(d + "Color " + c + data.getColor().humanName));
         if (data.getMarkings() != null) result.add(new TextComponent(d + "Markings " + c + data.getMarkings().humanName));
         result.add(new TextComponent(""));
+        result.add(new TextComponent(d + "Body " + c + data.getBodyCondition().humanName));
         result.add(new TextComponent(d + "Jump " + c + String.format("%.2f", data.getJump()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks)", data.getJumpHeight())));
         result.add(new TextComponent(d + "Speed " + c + String.format("%.2f", data.getSpeed()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks/sec)", data.getSpeed() * 4.3)));
         if (!data.getTrusted().isEmpty()) {

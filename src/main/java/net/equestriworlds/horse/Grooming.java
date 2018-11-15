@@ -1,5 +1,7 @@
 package net.equestriworlds.horse;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -88,7 +90,6 @@ final class Grooming implements Listener {
         try {
             return Tool.valueOf(tag.toUpperCase());
         } catch (IllegalArgumentException iae) {
-            iae.printStackTrace();
             return null;
         }
     }
@@ -102,6 +103,12 @@ final class Grooming implements Listener {
         if (tool.activity != Activity.WASH) result.setAmount(tool.activity.maximum);
         ItemMeta meta = result.getItemMeta();
         meta.setDisplayName(ChatColor.AQUA + tool.humanName);
+        ArrayList<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "Horse Grooming Tool");
+        for (String line: this.plugin.getConfig().getStringList("items." + tool.key + ".lore")) {
+            lore.add(line);
+        }
+        meta.setLore(lore);
         result.setItemMeta(meta);
         return result;
     }
@@ -130,12 +137,12 @@ final class Grooming implements Listener {
         if (!player.isSneaking()) player.teleport(player.getLocation());
         // Activity
         GroomingData groomingData = spawned.data.getGrooming();
-        long now = System.currentTimeMillis();
         if (groomingData == null) {
             groomingData = new GroomingData();
-            groomingData.expiration = now * 60L * 60L * 12L; // Stay for 12 hours.
+            groomingData.expiration = Instant.now().getEpochSecond() + 60L * 60L * 24L; // Stay for 12 hours.
             spawned.data.setGrooming(groomingData);
         }
+        long now = System.currentTimeMillis();
         if (now < groomingData.cooldown) return;
         boolean success;
         final int value;

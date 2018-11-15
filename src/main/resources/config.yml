@@ -1,3 +1,18 @@
 brands:
   RegistrationPrice: 250000
   ApplicationPrice: 10000
+items:
+  shampoo:
+    lore:
+    - Soak your horse,
+    - then apply this
+    - shampoo.
+    - Allow it to work
+    - for 30-60 seconds
+    - then scrape off
+    - with Sweat Scraper
+    - thoroughly.
+  foal_mix:
+    lore:
+    - Feed this to foals so
+    - they can grow up.

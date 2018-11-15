@@ -3,6 +3,7 @@ package net.equestriworlds.horse;
 import com.google.gson.Gson;
 import java.io.File;
 import java.io.FileReader;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,6 +58,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     private HorseListener horseListener;
     private Gaits gaits;
     private Grooming grooming;
+    private Feeding feeding;
     private Economy economy;
     // Data
     private Map<UUID, HorseBrand> horseBrands;
@@ -92,12 +94,14 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         this.horseListener = new HorseListener(this);
         this.gaits = new Gaits(this);
         this.grooming = new Grooming(this);
+        this.feeding = new Feeding(this);
         // Register events and commands
         getCommand("horse").setExecutor(this.horseCommand);
         getCommand("horseadmin").setExecutor(this.adminCommand);
         getServer().getPluginManager().registerEvents(this.horseListener, this);
         getServer().getPluginManager().registerEvents(this.gaits, this);
         getServer().getPluginManager().registerEvents(this.grooming, this);
+        getServer().getPluginManager().registerEvents(this.feeding, this);
         // Start tick timer
         getServer().getScheduler().runTaskTimer(this, this, 1L, 1L);
         // Setup economy one tick later to make sure the unknown economy plugin (NOT Vault) was loaded.
@@ -320,6 +324,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         if ((ticksLived % 10) == 0 && spawned.getFollowing() != null) {
             if (!followHorse(spawned)) spawned.setFollowing(null);
         }
+        // Crossties
         Crosstie crosstie = spawned.getCrosstie();
         if (crosstie != null && !crosstie.check()) {
             spawned.removeCrosstie();
@@ -327,9 +332,10 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
             this.database.updateHorse(spawned.data);
             spawned.getEntity().getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.BLOCK_IRON_DOOR_OPEN, SoundCategory.NEUTRAL, 1.0f, 2.0f);
         }
+        // Grooming
         HorseData.GroomingData groomingData = spawned.data.getGrooming();
         if (groomingData != null) {
-            if (groomingData.expiration < System.currentTimeMillis()) {
+            if (groomingData.expiration < Instant.now().getEpochSecond()) {
                 spawned.data.setGrooming(null);
                 this.database.updateHorse(spawned.data);
             } else if (groomingData.wash == 1 && (ticksLived % 8 == 0)) {
@@ -337,6 +343,11 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
             } else if (groomingData.wash == 2 && (ticksLived % 8 == 0)) {
                 spawned.getEntity().getWorld().spawnParticle(Particle.CLOUD, spawned.getEntity().getEyeLocation(), 8, 0.5, 0.5, 0.5, 0.0);
             }
+        }
+        // Eating and drinking
+        if (ticksLived > 0 && (ticksLived % 20) == 0) {
+            spawned.data.passSecond(Instant.now().getEpochSecond());
+            this.feeding.passSecond(spawned);
         }
     }
 

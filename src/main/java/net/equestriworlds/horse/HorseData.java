@@ -1,6 +1,8 @@
 package net.equestriworlds.horse;
 
 import com.google.gson.Gson;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -27,30 +29,39 @@ import org.bukkit.inventory.ItemStack;
 @Data
 final class HorseData {
     private int id = -1;
+    // Timing
+    private long lastSeen; // Unix Time
     // Identity
     private String name;
     private UUID owner;
     // EquestriWorlds Properties
     private HorseGender gender;
-    private long born;
+    private long born; // Unix Time
     private HorseAge age;
     private HorseBreed breed;
     // Minecraft Properties
     private HorseColor color;
     private HorseMarkings markings;
     private double jump, speed;
-    // Health
-    private double body = 4.0; // See BodyCondistionScale
+    // Feed
+    private double body = 4.0; // See BodyConditionScale
+    private double hydration = 5.0;
+    private int eatCooldown = 0;
+    private int drinkCooldown = 0;
+    private int burnFatCooldown = 0;
+    // Breeding
+    BreedingStage stage = BreedingStage.NOT_PREGNANT;
+    int pregnancyTime = 0;
+    int breedingPartner = -1;
     // Access
     private HashSet<UUID> trusted = new HashSet<>();
     // Optionals
-    String armor, saddle;
-    HorseLocation location;
-    CrosstieData crosstie;
-    HorseBrand brand;
-    Breeding breeding;
-    GroomingData grooming;
-    Health health;
+    private String armor, saddle;
+    private HorseLocation location;
+    private CrosstieData crosstie;
+    private HorseBrand brand;
+    private GroomingData grooming;
+    private Health health;
 
     @Value
     static final class HorseLocation {
@@ -69,11 +80,11 @@ final class HorseData {
         }
         HorseLocation(Location bukkitLocation) {
             this.world = bukkitLocation.getWorld().getName();
-            this.x = bukkitLocation.getX();
-            this.y = bukkitLocation.getY();
-            this.z = bukkitLocation.getZ();
-            this.pitch = bukkitLocation.getPitch();
-            this.yaw = bukkitLocation.getYaw();
+            this.x = round(bukkitLocation.getX());
+            this.y = round(bukkitLocation.getY());
+            this.z = round(bukkitLocation.getZ());
+            this.pitch = round(bukkitLocation.getPitch());
+            this.yaw = round(bukkitLocation.getYaw());
             this.cx = bukkitLocation.getBlockX() >> 4;
             this.cz = bukkitLocation.getBlockZ() >> 4;
             this.chunkIndex = ((long)cz << 32) | (long)cx;
@@ -87,25 +98,11 @@ final class HorseData {
     }
 
     @Data
-    static final class Breeding {
-        enum BreedingStage {
-            READY,
-            PREGNANT,
-            MARE_RECOVERY,
-            STALLION_RECOVERY,
-            ABORT_RECOVERY;
-        }
-        BreedingStage stage = BreedingStage.READY;
-        long breedingTime;
-        int partnerId = -1;
-    }
-
-    @Data
     static final class GroomingData {
-        transient long cooldown;
         long expiration;
         int appearance;
         int wash, clip, brush, hoof, comb, shed, hair, oil, sheen;
+        transient long cooldown;
     }
 
     @Data
@@ -130,16 +127,6 @@ final class HorseData {
 
     // --- Entity Properties
 
-    void loadProperties(AbstractHorse horse) {
-        this.name = horse.getCustomName();
-        if (horse instanceof Horse) {
-            this.color = HorseColor.of(((Horse)horse).getColor());
-            this.markings = HorseMarkings.of(((Horse)horse).getStyle());
-        }
-        this.jump = horse.getJumpStrength();
-        this.speed = horse.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).getValue();
-    }
-
     /**
      * Called by HorsePlugin#prepareHorseEntity().
      * Apply all the stored horse properties to the horse entity.
@@ -152,7 +139,7 @@ final class HorseData {
             if (this.markings != null) horseEntity.setStyle(this.markings.bukkitStyle);
         }
         entity.setJumpStrength(this.jump);
-        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.crosstie != null ? this.speed : 0.0);
+        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.crosstie == null ? this.speed : 0.0);
         entity.setAge(this.age.minecraftAge);
         entity.setAgeLock(true);
         entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(20.0);
@@ -266,5 +253,66 @@ final class HorseData {
 
     boolean canAccess(Player player) {
         return canAccess(player.getUniqueId());
+    }
+
+    // --- Timing
+
+    void passSecond(long now) {
+        if (this.eatCooldown > 0) this.eatCooldown -= 1;
+        if (this.drinkCooldown > 0) this.drinkCooldown -= 1;
+        if (this.burnFatCooldown > 0) this.burnFatCooldown -= 1;
+        this.lastSeen = now;
+    }
+
+    // --- Body
+
+    BodyConditionScale getBodyCondition() {
+        return BodyConditionScale.of(this.body);
+    }
+
+    void setBodyCondition(BodyConditionScale scale) {
+        this.body = (double)scale.score;
+    }
+
+    boolean isHungry() {
+        return eatCooldown == 0;
+    }
+
+    void setHungry(boolean hungry) {
+        this.eatCooldown = hungry ? 0 : 3600;
+    }
+
+    boolean isThirsty() {
+        return drinkCooldown == 0;
+    }
+
+    void setThirsty(boolean thirsty) {
+        this.drinkCooldown = thirsty ? 0 : 3600;
+    }
+
+    // --- Double setters
+
+    private static double round(double v) {
+        BigDecimal bd = new BigDecimal(v);
+        bd = bd.setScale(2, RoundingMode.HALF_UP);
+        return bd.doubleValue();
+    }
+
+    private static float round(float v) {
+        BigDecimal bd = new BigDecimal(v);
+        bd = bd.setScale(2, RoundingMode.HALF_UP);
+        return bd.floatValue();
+    }
+
+    public void setBody(double newBody) {
+        this.body = round(newBody);
+    }
+
+    public void setJump(double newJump) {
+        this.jump = round(newJump);
+    }
+
+    public void setSpeed(double newSpeed) {
+        this.speed = round(newSpeed);
     }
 }
