@@ -26,6 +26,10 @@ import org.bukkit.inventory.AbstractHorseInventory;
 import org.bukkit.inventory.ArmoredHorseInventory;
 import org.bukkit.inventory.ItemStack;
 
+/**
+ * HorseData are completely (de)serializable via Gson and will be
+ * stored in the `horses.db` as such.
+ */
 @Data
 final class HorseData {
     private int id = -1;
@@ -59,7 +63,7 @@ final class HorseData {
     private String armor, saddle;
     private HorseLocation location;
     private CrosstieData crosstie;
-    private HorseBrand brand;
+    private HorseBrand brand; // See HorseBrand
     private GroomingData grooming;
     private Health health;
 
@@ -107,8 +111,6 @@ final class HorseData {
 
     @Data
     static final class Health {
-        // EnumSet<HorseSymptom> symptoms; // TODO
-        // Disease disease; // TODO
         boolean immortal;
         boolean vaccinated;
         double temperature, pulse, eyes, hydration, body, due;

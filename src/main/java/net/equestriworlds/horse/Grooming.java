@@ -94,7 +94,6 @@ final class Grooming implements Listener {
         }
     }
 
-    // TODO: Item descriptions and multiple uses.
     ItemStack spawnTool(Tool tool) {
         if (tool == Tool.WATER_BUCKET) return Tool.WATER_BUCKET.toolItem.clone();
         ItemStack result = this.plugin.getDirtyNBT().toCraftItemStack(tool.toolItem.clone());

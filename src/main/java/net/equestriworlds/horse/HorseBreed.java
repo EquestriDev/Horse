@@ -3,9 +3,9 @@ package net.equestriworlds.horse;
 import java.util.Arrays;
 import java.util.EnumSet;
 import lombok.Getter;
-import org.bukkit.entity.EntityType;
 import static net.equestriworlds.horse.HorseColor.*;
 import static net.equestriworlds.horse.HorseMarkings.*;
+import org.bukkit.entity.EntityType;
 
 /**
  * An enum of all available horse breeds with their possible colors

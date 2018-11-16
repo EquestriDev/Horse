@@ -378,7 +378,6 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
 
     // --- Player Cache
 
-    // TODO: Actually cache something(?)
     String cachedPlayerName(UUID uuid) {
         return getServer().getOfflinePlayer(uuid).getName();
     }

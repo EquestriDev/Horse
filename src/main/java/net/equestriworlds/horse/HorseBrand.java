@@ -1,13 +1,13 @@
 package net.equestriworlds.horse;
 
 import java.util.UUID;
-import lombok.Data;
+import lombok.Value;
 
 /**
  * Serialized as part of HorseData.  One per player.  Unchangeable
  * forever.
  */
-@Data
+@Value
 final class HorseBrand {
     private final UUID owner;
     private final String format;
