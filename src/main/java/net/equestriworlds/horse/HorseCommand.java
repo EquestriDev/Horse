@@ -289,6 +289,10 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         result.add(new TextComponent(d + "Gender " + c + data.getGender().humanName + " " + data.getGender().symbol));
         result.add(new TextComponent(d + "Age " + c + data.getAge().humanName));
         if (data.getBrand() != null) result.add(new TextComponent(d + "Brand " + c + data.getBrand().getFormat()));
+        HorseData mother = data.getMother(this.plugin);
+        if (mother != null) result.add(new TextComponent(d + "Mother " + mother.getMaskedName()));
+        HorseData father = data.getFather(this.plugin);
+        if (father != null) result.add(new TextComponent(d + "Father " + father.getMaskedName()));
         result.add(new TextComponent(""));
         result.add(new TextComponent(d + "Breed " + c + data.getBreed().humanName));
         if (data.getColor() != null) result.add(new TextComponent(d + "Color " + c + data.getColor().humanName));

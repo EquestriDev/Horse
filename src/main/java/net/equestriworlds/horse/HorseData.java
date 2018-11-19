@@ -1,9 +1,8 @@
 package net.equestriworlds.horse;
 
 import com.google.gson.Gson;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -13,8 +12,8 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.Data;
 import lombok.Value;
+import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
@@ -38,6 +37,7 @@ final class HorseData {
     // Identity
     private String name;
     private UUID owner;
+    private int motherId = -1, fatherId = -1;
     // EquestriWorlds Properties
     private HorseGender gender;
     private long born; // Unix Time
@@ -50,16 +50,16 @@ final class HorseData {
     // Feed
     private double body = 4.0; // See BodyConditionScale
     private double hydration = 5.0;
-    private int eatCooldown = 0;
-    private int drinkCooldown = 0;
-    private int burnFatCooldown = 0;
+    private int eatCooldown = 3600;
+    private int drinkCooldown = 3600;
+    private int burnFatCooldown = 3600;
     // Breeding
-    BreedingStage stage = BreedingStage.NOT_PREGNANT;
-    int pregnancyTime = 0;
-    int breedingPartner = -1;
+    BreedingStage breedingStage = BreedingStage.READY;
+    int breedingCooldown = 0;
     // Access
     private HashSet<UUID> trusted = new HashSet<>();
     // Optionals
+    private Pregnancy pregnancy;
     private String armor, saddle;
     private HorseLocation location;
     private CrosstieData crosstie;
@@ -84,11 +84,11 @@ final class HorseData {
         }
         HorseLocation(Location bukkitLocation) {
             this.world = bukkitLocation.getWorld().getName();
-            this.x = round(bukkitLocation.getX());
-            this.y = round(bukkitLocation.getY());
-            this.z = round(bukkitLocation.getZ());
-            this.pitch = round(bukkitLocation.getPitch());
-            this.yaw = round(bukkitLocation.getYaw());
+            this.x = Util.roundDouble(bukkitLocation.getX(), 2);
+            this.y = Util.roundDouble(bukkitLocation.getY(), 2);
+            this.z = Util.roundDouble(bukkitLocation.getZ(), 2);
+            this.pitch = Util.roundFloat(bukkitLocation.getPitch(), 2);
+            this.yaw = Util.roundFloat(bukkitLocation.getYaw(), 2);
             this.cx = bukkitLocation.getBlockX() >> 4;
             this.cz = bukkitLocation.getBlockZ() >> 4;
             this.chunkIndex = ((long)cz << 32) | (long)cx;
@@ -116,6 +116,19 @@ final class HorseData {
         double temperature, pulse, eyes, hydration, body, due;
     }
 
+    @Data
+    static final class Pregnancy {
+        enum Flag {
+            OVERWEIGHT,
+            UNDERWEIGHT,
+            PREMATURE,
+            MISCARRIAGE;
+        }
+        long conceived;
+        int partnerId = -1;
+        EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
+    }
+
     // --- Util
 
     double getJumpHeight() {
@@ -125,6 +138,10 @@ final class HorseData {
 
     String getStrippedName() {
         return ChatColor.stripColor(this.name);
+    }
+
+    String getMaskedName() {
+        return ChatColor.RESET + this.name + ChatColor.RESET;
     }
 
     // --- Entity Properties
@@ -188,6 +205,16 @@ final class HorseData {
 
     boolean isOwner(Player player) {
         return player.getUniqueId().equals(owner);
+    }
+
+    String getOwnerName(HorsePlugin plugin) {
+        if (this.owner == null) return "Nobody";
+        String result = plugin.cachedPlayerName(this.owner);
+        return result == null ? "N/A" : result;
+    }
+
+    Player getOwningPlayer() {
+        return this.owner == null ? null : Bukkit.getPlayer(this.owner);
     }
 
     // --- Inventory
@@ -263,6 +290,7 @@ final class HorseData {
         if (this.eatCooldown > 0) this.eatCooldown -= 1;
         if (this.drinkCooldown > 0) this.drinkCooldown -= 1;
         if (this.burnFatCooldown > 0) this.burnFatCooldown -= 1;
+        if (this.breedingCooldown > 0) this.breedingCooldown -= 1;
         this.lastSeen = now;
     }
 
@@ -292,29 +320,17 @@ final class HorseData {
         this.drinkCooldown = thirsty ? 0 : 3600;
     }
 
-    // --- Double setters
-
-    private static double round(double v) {
-        BigDecimal bd = new BigDecimal(v);
-        bd = bd.setScale(2, RoundingMode.HALF_UP);
-        return bd.doubleValue();
+    void setBody(double val) {
+        this.body = Util.roundDouble(val, 6);
     }
 
-    private static float round(float v) {
-        BigDecimal bd = new BigDecimal(v);
-        bd = bd.setScale(2, RoundingMode.HALF_UP);
-        return bd.floatValue();
+    // --- Parents
+
+    HorseData getMother(HorsePlugin plugin) {
+        return this.motherId < 0 ? null : plugin.findHorse(this.motherId);
     }
 
-    public void setBody(double newBody) {
-        this.body = round(newBody);
-    }
-
-    public void setJump(double newJump) {
-        this.jump = round(newJump);
-    }
-
-    public void setSpeed(double newSpeed) {
-        this.speed = round(newSpeed);
+    HorseData getFather(HorsePlugin plugin) {
+        return this.fatherId < 0 ? null : plugin.findHorse(this.fatherId);
     }
 }

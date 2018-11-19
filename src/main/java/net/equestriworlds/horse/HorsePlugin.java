@@ -59,6 +59,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     private Gaits gaits;
     private Grooming grooming;
     private Feeding feeding;
+    private Breeding breeding;
     private Economy economy;
     // Data
     private Map<UUID, HorseBrand> horseBrands;
@@ -95,6 +96,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         this.gaits = new Gaits(this);
         this.grooming = new Grooming(this);
         this.feeding = new Feeding(this);
+        this.breeding = new Breeding(this);
         // Register events and commands
         getCommand("horse").setExecutor(this.horseCommand);
         getCommand("horseadmin").setExecutor(this.adminCommand);
@@ -102,6 +104,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         getServer().getPluginManager().registerEvents(this.gaits, this);
         getServer().getPluginManager().registerEvents(this.grooming, this);
         getServer().getPluginManager().registerEvents(this.feeding, this);
+        getServer().getPluginManager().registerEvents(this.breeding, this);
         // Start tick timer
         getServer().getScheduler().runTaskTimer(this, this, 1L, 1L);
         // Setup economy one tick later to make sure the unknown economy plugin (NOT Vault) was loaded.
@@ -346,8 +349,10 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         }
         // Eating and drinking
         if (ticksLived > 0 && (ticksLived % 20) == 0) {
-            spawned.data.passSecond(Instant.now().getEpochSecond());
-            this.feeding.passSecond(spawned);
+            Long now = Instant.now().getEpochSecond();
+            spawned.data.passSecond(now);
+            this.feeding.passSecond(spawned, now);
+            if (spawned.data.getBreedingStage() != BreedingStage.READY) this.breeding.passSecond(spawned, now);
         }
     }
 

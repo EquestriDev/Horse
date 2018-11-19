@@ -20,6 +20,13 @@ commands:
       /h registerbrand - Register brand
       /h brandlist - List brands
       /h help - Usage
+  vet:
+    aliases: [vh]
+    descripton: Horse vet command
+    permission: horse.vet
+    usage: |-
+      /vh birth - Initiate birth
+      /vh abort - Abort baby horse
   horseadmin:
     aliases: [ha]
     description: Admin interface
@@ -37,4 +44,13 @@ permissions:
     default: op
   horse.admin:
     description: Use /ha
+    default: op
+  horse.vet:
+    description: Licensed to be a veterenarian.
+    default: op
+  horse.farrier:
+    description: Licensed to be a hoof expert.
+    default: op
+  horse.floater:
+    description: Licensed to be a horse dentist.
     default: op

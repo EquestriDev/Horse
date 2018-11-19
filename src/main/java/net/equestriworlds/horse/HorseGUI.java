@@ -80,7 +80,6 @@ final class HorseGUI implements InventoryHolder {
                         this.plugin.getHorseCommand().sendHorseInfo((Player)human, data);
                     } else if (event.isLeftClick() && event.isShiftClick()) {
                         this.plugin.teleportHorse(data, human.getLocation());
-                        human.closeInventory();
                     }
                 });
             currentIndex += 1;

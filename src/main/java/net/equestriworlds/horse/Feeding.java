@@ -5,6 +5,7 @@ import java.util.Optional;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.md_5.bungee.api.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -123,6 +124,7 @@ final class Feeding implements Listener {
             player.getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_ANGRY, SoundCategory.NEUTRAL, 0.5f, 1.0f);
             return;
         }
+        // Foals cannot be fed; yearlings only eat foal mix.
         if (spawned.data.getAge() == HorseAge.FOAL) return;
         if (feed == Feed.FOAL_MIX && spawned.data.getAge() != HorseAge.YEARLING) return;
         // Eat
@@ -133,23 +135,93 @@ final class Feeding implements Listener {
         HorseEffects.feed(this.plugin, player, spawned, feed);
     }
 
-    // Requires presence
-    void passSecond(SpawnedHorse spawned) {
-        // TODO: special case FOAL, YEARLING
-        if (spawned.data.getEatCooldown() == 0) {
-        // Grazing
-            Block grazeBlock = findGrass(spawned.getEntity());
-            if (grazeBlock != null) {
-                spawned.data.setBody(spawned.data.getBody() + 0.07);
-                spawned.data.setEatCooldown(3600);
-                grazeBlock.setType(Material.DIRT);
-                HorseEffects.grazeEffect(this.plugin, grazeBlock);
+    double dailyBodyReduction(SpawnedHorse spawned) {
+        switch (spawned.data.getAge()) {
+        case FOAL:
+        case YEARLING:
+            return 0.60;
+        case ADOLESCENT:
+            return 0.80;
+        case ADULT:
+        default:
+            switch (spawned.data.getBreedingStage()) {
+            case PREGNANT:
+            case NURTURE:
+                return 0.90;
+            default:
+                return 0.80;
             }
         }
-        // Every 3 hours, lose 0.1 body value, adding up to 0.8 per day.
+    }
+
+    boolean isMotherNearby(SpawnedHorse baby) {
+        HorseData mother = baby.data.getMother(this.plugin);
+        if (mother == null) return false;
+        SpawnedHorse spawned = this.plugin.findSpawnedHorse(mother);
+        final Location motherLocation;
+        if (spawned == null || !spawned.isPresent()) {
+            if (spawned.data.getLocation() == null) return false;
+            motherLocation = spawned.data.getLocation().bukkitLocation();
+            if (motherLocation == null) return false;
+        } else {
+            motherLocation = spawned.getEntity().getLocation();
+        }
+        Location babyLocation = baby.getEntity().getLocation();
+        if (!motherLocation.getWorld().equals(babyLocation.getWorld())) return false;
+        return babyLocation.distanceSquared(motherLocation) <= 36.0; // 6 * 6
+    }
+
+    // Requires presence
+    void passSecond(SpawnedHorse spawned, long now) {
+        if (spawned.data.getEatCooldown() == 0) {
+            // Grazing
+            switch (spawned.data.getAge()) {
+            case FOAL: { // Foals cannot be fed or graze but suckle their mother.
+                if (!isMotherNearby(spawned)) break;
+                // Suckly 0.1 per 4 hours, adding up to 0.6 per day.
+                spawned.data.setEatCooldown(ONE_HOUR * 4);
+                spawned.data.setBody(spawned.data.getBody() + 0.6);
+                // Audiovisual feedback
+                HorseEffects.suckleEffect(this.plugin, spawned);
+                break;
+            }
+            case YEARLING: // Yearlings need to be fed but cannot graze.
+                break;
+            default: {
+                Block grazeBlock = findGrass(spawned.getEntity());
+                if (grazeBlock != null) {
+                    spawned.data.setBody(spawned.data.getBody() + 0.07);
+                    spawned.data.setEatCooldown(3600);
+                    grazeBlock.setType(Material.DIRT);
+                    HorseEffects.grazeEffect(this.plugin, grazeBlock);
+                }
+            }
+            }
+        }
+        // Once per day, lose body value.
         if (spawned.data.getBurnFatCooldown() == 0) {
-            spawned.data.setBurnFatCooldown(ONE_HOUR * 3);
-            spawned.data.setBody(spawned.data.getBody() - 0.10);
+            switch (spawned.data.getAge()) {
+            case FOAL:
+            case YEARLING:
+                // 0.1 * 6 = 0.6 (every 4 hours);
+                spawned.data.setBody(spawned.data.getBody() - 0.1);
+                spawned.data.setBurnFatCooldown(ONE_HOUR * 4);
+                break;
+            default:
+                switch (spawned.data.getBreedingStage()) {
+                case PREGNANT:
+                case NURTURE:
+                    // 0.15 * 6 = 0.9 (every 4 hours)
+                    spawned.data.setBody(spawned.data.getBody() - 0.15);
+                    spawned.data.setBurnFatCooldown(ONE_HOUR * 4);
+                    break;
+                default:
+                    // 0.1 * 8 = 0.8 (every 3 hours)
+                    spawned.data.setBody(spawned.data.getBody() - 0.1);
+                    spawned.data.setBurnFatCooldown(ONE_HOUR * 3);
+                }
+            }
+            this.plugin.getDatabase().updateHorse(spawned.data);
         }
     }
 

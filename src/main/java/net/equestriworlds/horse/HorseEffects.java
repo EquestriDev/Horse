@@ -139,4 +139,10 @@ final class HorseEffects {
         l.getWorld().playSound(l, Sound.BLOCK_GRASS_BREAK, SoundCategory.BLOCKS, 1.0f, 1.0f);
         l.getWorld().spawnParticle(Particle.BLOCK_DUST, l, 12, 0.25, 0.25, 0.25, 0.1, Material.GRASS.getNewData((byte)0));
     }
+
+    static void suckleEffect(HorsePlugin plugin, SpawnedHorse spawned) {
+        Location loc = spawned.getEntity().getEyeLocation().add(0.0, 0.5, 0.0);
+        loc.getWorld().playSound(loc, Sound.ENTITY_COW_MILK, SoundCategory.NEUTRAL, 0.5f, 1.35f);
+        loc.getWorld().spawnParticle(Particle.BLOCK_DUST, loc, 32, 0.0, 0.0, 0.0, 0.1, Material.QUARTZ_BLOCK.getNewData((byte)0));
+    }
 }

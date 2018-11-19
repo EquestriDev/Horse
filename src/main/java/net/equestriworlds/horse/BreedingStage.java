@@ -2,10 +2,16 @@ package net.equestriworlds.horse;
 
 import lombok.Getter;
 
+/**
+ * Stages of breeding.  Pregnant, labor and nurture only apply to
+ * mares.
+ */
 @Getter
 public enum BreedingStage implements HumanReadable {
-    NOT_PREGNANT,
+    READY,
     PREGNANT,
+    LABOR,    // Final 2 hours of pregnancy
+    NURTURE,
     RECOVERY;
 
     public final String humanName;

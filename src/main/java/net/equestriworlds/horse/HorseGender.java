@@ -26,4 +26,8 @@ enum HorseGender implements HumanReadable {
     boolean isMale() {
         return this != MARE;
     }
+
+    String pronoun() {
+        return this == MARE ? "her" : "him";
+    }
 }
