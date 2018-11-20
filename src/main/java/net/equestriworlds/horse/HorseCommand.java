@@ -300,7 +300,10 @@ final class HorseCommand extends CommandBase implements TabExecutor {
         result.add(new TextComponent(""));
         result.add(new TextComponent(d + "Body " + c + data.getBodyCondition().humanName + ChatColor.GRAY + ", " + c + data.getHydrationLevel().humanName));
         result.add(new TextComponent(d + "Jump " + c + String.format("%.2f", data.getJump()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks)", data.getJumpHeight())));
-        result.add(new TextComponent(d + "Speed " + c + String.format("%.2f", data.getSpeed()) + ChatColor.GRAY + ChatColor.ITALIC + String.format(" (%.02f blocks/sec)", data.getSpeed() * 4.3)));
+        result.add(new TextComponent(d + "Speed " + c + String.format("%.2f", data.getSpeed())));
+        if (data.getGrooming() != null) {
+            result.add(new TextComponent(d + "Appearance " + c + data.getGrooming().getAppearance()));
+        }
         if (!data.getTrusted().isEmpty()) {
             result.add(new TextComponent(""));
             Iterator<UUID> iter = data.getTrusted().iterator();
