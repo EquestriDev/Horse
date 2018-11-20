@@ -2,6 +2,7 @@ package net.equestriworlds.horse;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import net.md_5.bungee.api.ChatColor;
 
 public final class Util {
     private Util() { }
@@ -22,5 +23,13 @@ public final class Util {
         BigDecimal bd = new BigDecimal(v);
         bd = bd.setScale(digits, RoundingMode.HALF_UP);
         return bd.floatValue();
+    }
+
+    public static String genitive(String name) {
+        return name.endsWith("s") ? name + "'" : name + "'s";
+    }
+
+    public static String maskMoney(String format) {
+        return "" + ChatColor.RESET + ChatColor.YELLOW + ChatColor.ITALIC + ChatColor.UNDERLINE + format + ChatColor.RESET;
     }
 }

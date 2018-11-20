@@ -216,4 +216,8 @@ abstract class CommandBase {
         String result = this.plugin.cachedPlayerName(id);
         return result != null ? result : dfl;
     }
+
+    void expectOwnership(Player player, HorseData data) throws CommandException {
+        if (!data.isOwner(player)) throw new CommandException(data.getStrippedName() + " does not belong to you!");
+    }
 }

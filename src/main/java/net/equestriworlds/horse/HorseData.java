@@ -36,6 +36,7 @@ final class HorseData {
     private long lastSeen; // Unix Time
     // Identity
     private String name;
+    private String showName;
     private UUID owner;
     private int motherId = -1, fatherId = -1;
     // EquestriWorlds Properties
@@ -143,6 +144,7 @@ final class HorseData {
     }
 
     String getMaskedName() {
+        if (this.showName != null) return ChatColor.RESET + this.showName + ChatColor.RESET;
         return ChatColor.RESET + this.name + ChatColor.RESET;
     }
 
@@ -153,7 +155,7 @@ final class HorseData {
      * Apply all the stored horse properties to the horse entity.
      */
     void applyProperties(AbstractHorse entity) {
-        entity.setCustomName(this.name + " " + this.gender.chatColor + this.gender.symbol);
+        entity.setCustomName(this.getMaskedName() + " " + this.gender.chatColor + this.gender.symbol);
         if (entity instanceof Horse) {
             Horse horseEntity = (Horse)entity;
             if (this.color != null) horseEntity.setColor(this.color.bukkitColor);

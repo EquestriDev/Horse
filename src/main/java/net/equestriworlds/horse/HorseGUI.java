@@ -70,7 +70,7 @@ final class HorseGUI implements InventoryHolder {
             default: icon = new ItemStack(Material.INK_SACK);
             }
             ItemMeta meta = icon.getItemMeta();
-            meta.setDisplayName(data.getName());
+            meta.setDisplayName(data.getMaskedName());
             meta.setLore(this.plugin.getHorseCommand().describeHorse(data).stream().map(bc -> bc.toPlainText()).collect(Collectors.toList()));
             icon.setItemMeta(meta);
             this.inventory.setItem(currentIndex, icon);
