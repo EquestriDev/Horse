@@ -48,10 +48,11 @@ final class EditCommand extends CommandBase {
     private final EditField speed = new EditField<Double>("speed", "Speed", HorseData::getSpeed, HorseData::setSpeed, Double::parseDouble);
     private final EditField presets = new EditField("presets", "Presets", null, null, null);
     private final EditField<BodyConditionScale> body = new EditField<>("body", "Body", HorseData::getBodyCondition, HorseData::setBodyCondition, BodyConditionScale::valueOf);
+    private final EditField<HydrationLevel> hydration = new EditField<>("hydration", "Hydration", HorseData::getHydrationLevel, HorseData::setHydrationLevel, HydrationLevel::valueOf);
     private final EditField grooming = new EditField<Double>("grooming", "Grooming", null, null, null);
     private final EditField<Boolean> hungry = new EditField<>("hungry", "Hungry", HorseData::isHungry, HorseData::setHungry, Boolean::valueOf);
     private final EditField<Boolean> thirsty = new EditField<>("thirsty", "Thirsty", HorseData::isThirsty, HorseData::setThirsty, Boolean::valueOf);
-    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.body, this.jump, this.speed, this.presets, this.grooming, this.hungry, this.thirsty);
+    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.body, this.hydration, this.jump, this.speed, this.presets, this.grooming, this.hungry, this.thirsty);
     private final List<ChatColor> colorful = Arrays.asList(ChatColor.AQUA, ChatColor.BLUE, ChatColor.GOLD, ChatColor.GREEN, ChatColor.LIGHT_PURPLE, ChatColor.RED, ChatColor.YELLOW);
     private int colorfulIndex;
     private final List<String> dice = Arrays.asList("\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685");
@@ -443,6 +444,7 @@ final class EditCommand extends CommandBase {
         if (field == this.age)      return Arrays.asList(HorseAge.values());
         if (field == this.breed)    return Arrays.asList(HorseBreed.values());
         if (field == this.body)     return Arrays.asList(BodyConditionScale.values());
+        if (field == this.hydration) return Arrays.asList(HydrationLevel.values());
         if (field == this.color)    return new ArrayList(data.getBreed().colors);
         if (field == this.markings) return new ArrayList(data.getBreed().markings);
         if (field == this.hungry)   return Arrays.asList(true, false);

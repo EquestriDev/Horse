@@ -145,4 +145,38 @@ final class HorseEffects {
         loc.getWorld().playSound(loc, Sound.ENTITY_COW_MILK, SoundCategory.NEUTRAL, 0.5f, 1.35f);
         loc.getWorld().spawnParticle(Particle.BLOCK_DUST, loc, 32, 0.0, 0.0, 0.0, 0.1, Material.QUARTZ_BLOCK.getNewData((byte)0));
     }
+
+    static void drinkEffect(HorsePlugin plugin, SpawnedHorse spawned, Block waterBlock) {
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override public void run() {
+                if (!spawned.isPresent()) {
+                    cancel();
+                    return;
+                }
+                Location loc = spawned.getEntity().getEyeLocation().add(0.0, 0.25, 0.0);
+                Location loc2 = waterBlock.getLocation().add(0.5, 1.0, 0.5);
+                switch (tick++) {
+                case 0:
+                    loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_DRINK, SoundCategory.NEUTRAL, 0.2f, 1.200f);
+                    loc2.getWorld().spawnParticle(Particle.WATER_SPLASH, loc2, 8, 0.15, 0.15, 0.15, 1.0);
+                    break;
+                case 1:
+                    loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_DRINK, SoundCategory.NEUTRAL, 0.3f, 1.225f);
+                    loc2.getWorld().spawnParticle(Particle.WATER_SPLASH, loc2, 16, 0.20, 0.20, 0.20, 1.0);
+                    break;
+                case 2:
+                    loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_DRINK, SoundCategory.NEUTRAL, 0.4f, 1.250f);
+                    loc2.getWorld().spawnParticle(Particle.WATER_SPLASH, loc2, 32, 0.25, 0.25, 0.25, 1.0);
+                    break;
+                case 3:
+                    loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_DRINK, SoundCategory.NEUTRAL, 0.5f, 1.3f);
+                    loc2.getWorld().spawnParticle(Particle.WATER_SPLASH, loc2, 64, 0.25, 0.25, 0.25, 1.0);
+                    break;
+                default:
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 4L, 4L);
+    }
 }

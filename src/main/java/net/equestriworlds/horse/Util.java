@@ -6,6 +6,8 @@ import java.math.RoundingMode;
 public final class Util {
     private Util() { }
 
+    public static final int ONE_MINUTE = 60;
+    public static final int ONE_HOUR = 60 * 60;
     public static final int ONE_DAY = 60 * 60 * 24; // One day in seconds
 
     // --- Double setters

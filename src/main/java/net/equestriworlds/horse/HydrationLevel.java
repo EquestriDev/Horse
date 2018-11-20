@@ -10,23 +10,26 @@ enum HydrationLevel implements HumanReadable {
     PARCHED   (3),
     HYDRATED  (4);
 
+    public static final double MAX_VALUE = 5.0;
     public final String humanName;
-    public final double score;
+    public final int score;
 
     HydrationLevel(int score, String humanName) {
-        this.score = (double)score;
+        this.score = score;
         this.humanName = humanName;
     }
 
     HydrationLevel(int score) {
-        this.score = (double)score;
+        this.score = score;
         this.humanName = HumanReadable.enumToHuman(this);
     }
 
     static HydrationLevel of(double hydration) {
-        HydrationLevel[] vs = values();
-        for (int i = vs.length - 1; i >= 0; i -= 1) {
-            if (hydration >= vs[i].score) return vs[i];
+        int sc = (int)Math.floor(hydration);
+        if (sc <= 0) return DEHYDRATED;
+        if (sc >= 4) return HYDRATED;
+        for (HydrationLevel lvl: values()) {
+            if (lvl.score == sc) return lvl;
         }
         return DEHYDRATED;
     }

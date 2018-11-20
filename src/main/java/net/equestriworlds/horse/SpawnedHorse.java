@@ -37,6 +37,15 @@ final class SpawnedHorse {
         return this.crosstie != null;
     }
 
+    boolean canFreeroam() {
+        if (this.crosstie != null) return false;
+        if (this.entity != null && this.entity.isValid()) {
+            if (!this.entity.getPassengers().isEmpty()) return false;
+            if (this.entity.isLeashed()) return false;
+        }
+        return true;
+    }
+
     void setupCrosstie(Crosstie newCrosstie) {
         if (this.crosstie != null) throw new IllegalStateException("crosstie already set");
         if (newCrosstie.isValid()) throw new IllegalStateException("crosstie already validated");

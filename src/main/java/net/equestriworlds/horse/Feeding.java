@@ -20,10 +20,12 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+/**
+ * Manage horse feeding, body value, and hydration.
+ */
 @RequiredArgsConstructor
 final class Feeding implements Listener {
     private final HorsePlugin plugin;
-    public static final int ONE_HOUR = 3600;
 
     @Getter
     enum Feed implements HumanReadable {
@@ -130,7 +132,7 @@ final class Feeding implements Listener {
         // Eat
         if (!player.isSneaking()) player.teleport(player.getLocation());
         spawned.data.setBody(spawned.data.getBody() + feed.value);
-        spawned.data.setEatCooldown(ONE_HOUR);
+        spawned.data.setEatCooldown(Util.ONE_HOUR);
         item.setAmount(item.getAmount() - 1);
         HorseEffects.feed(this.plugin, player, spawned, feed);
     }
@@ -178,8 +180,8 @@ final class Feeding implements Listener {
             switch (spawned.data.getAge()) {
             case FOAL: { // Foals cannot be fed or graze but suckle their mother.
                 if (!isMotherNearby(spawned)) break;
-                // Suckly 0.1 per 4 hours, adding up to 0.6 per day.
-                spawned.data.setEatCooldown(ONE_HOUR * 4);
+                // Suckle 0.1 per 4 hours, adding up to 0.6 per day.
+                spawned.data.setEatCooldown(Util.ONE_HOUR * 4);
                 spawned.data.setBody(spawned.data.getBody() + 0.6);
                 // Audiovisual feedback
                 HorseEffects.suckleEffect(this.plugin, spawned);
@@ -188,12 +190,14 @@ final class Feeding implements Listener {
             case YEARLING: // Yearlings need to be fed but cannot graze.
                 break;
             default: {
-                Block grazeBlock = findGrass(spawned.getEntity());
-                if (grazeBlock != null) {
-                    spawned.data.setBody(spawned.data.getBody() + 0.07);
-                    spawned.data.setEatCooldown(3600);
-                    grazeBlock.setType(Material.DIRT);
-                    HorseEffects.grazeEffect(this.plugin, grazeBlock);
+                if (spawned.canFreeroam()) {
+                    Block grazeBlock = findGrass(spawned.getEntity());
+                    if (grazeBlock != null) {
+                        spawned.data.setBody(spawned.data.getBody() + 0.07);
+                        spawned.data.setEatCooldown(3600);
+                        grazeBlock.setType(Material.DIRT);
+                        HorseEffects.grazeEffect(this.plugin, grazeBlock);
+                    }
                 }
             }
             }
@@ -205,7 +209,7 @@ final class Feeding implements Listener {
             case YEARLING:
                 // 0.1 * 6 = 0.6 (every 4 hours);
                 spawned.data.setBody(spawned.data.getBody() - 0.1);
-                spawned.data.setBurnFatCooldown(ONE_HOUR * 4);
+                spawned.data.setBurnFatCooldown(Util.ONE_HOUR * 4);
                 break;
             default:
                 switch (spawned.data.getBreedingStage()) {
@@ -213,14 +217,56 @@ final class Feeding implements Listener {
                 case NURTURE:
                     // 0.15 * 6 = 0.9 (every 4 hours)
                     spawned.data.setBody(spawned.data.getBody() - 0.15);
-                    spawned.data.setBurnFatCooldown(ONE_HOUR * 4);
+                    spawned.data.setBurnFatCooldown(Util.ONE_HOUR * 4);
                     break;
                 default:
                     // 0.1 * 8 = 0.8 (every 3 hours)
                     spawned.data.setBody(spawned.data.getBody() - 0.1);
-                    spawned.data.setBurnFatCooldown(ONE_HOUR * 3);
+                    spawned.data.setBurnFatCooldown(Util.ONE_HOUR * 3);
                 }
             }
+            this.plugin.getDatabase().updateHorse(spawned.data);
+        }
+        // Hydration
+        if (spawned.data.getDrinkCooldown() == 0) {
+            if (spawned.data.getHydration() >= HydrationLevel.MAX_VALUE) {
+                // If we're already fully hydrated, wait another our.
+                spawned.data.setDrinkCooldown(Util.ONE_HOUR);
+            } else if (!spawned.canFreeroam()) {
+                System.out.println("!canFreeroam");
+                // We can only drink if we're free.
+                spawned.data.setDrinkCooldown(Util.ONE_MINUTE);
+            } else {
+                System.out.println("!else");
+                // We are thirsty and can move freely.  Try to drink.
+                Block waterBlock = findWater(spawned.getEntity());
+                if (waterBlock == null) {
+                    System.out.println("waterBlock == null");
+                    spawned.data.setDrinkCooldown(Util.ONE_MINUTE);
+                } else {
+                    System.out.println("waterBlock != null");
+                    int fill = (int)waterBlock.getData();
+                    waterBlock.setData((byte)(fill - 1));
+                    double hydration = spawned.data.getHydration();
+                    hydration = Math.min(HydrationLevel.MAX_VALUE, hydration + 1.0);
+                    spawned.data.setHydration(hydration);
+                    if (hydration < HydrationLevel.MAX_VALUE) {
+                        spawned.data.setDrinkCooldown(Util.ONE_HOUR);
+                    } else {
+                        // We are fully restocked.  Reset the
+                        // dehydration cooldown now.
+                        spawned.data.setDrinkCooldown(Util.ONE_HOUR);
+                        spawned.data.setDehydrateCooldown(Util.ONE_HOUR * 24);
+                    }
+                    HorseEffects.drinkEffect(this.plugin, spawned, waterBlock);
+                }
+            }
+            this.plugin.getDatabase().updateHorse(spawned.data);
+        }
+        if (spawned.data.getDehydrateCooldown() == 0) {
+            double hydration = spawned.data.getHydration();
+            spawned.data.setHydration(Math.max(0.0, hydration - 0.5));
+            spawned.data.setDehydrateCooldown(Util.ONE_DAY);
             this.plugin.getDatabase().updateHorse(spawned.data);
         }
     }
@@ -245,6 +291,28 @@ final class Feeding implements Listener {
                 for (int y = -r; y <= r; y += 1) {
                     Block block = center.getRelative(x, y, z);
                     if (block.getType() == Material.GRASS) {
+                        int d = blockDistance(block, center);
+                        if (result == null || d < distance) {
+                            result = block;
+                            distance = d;
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private Block findWater(AbstractHorse entity) {
+        Block center = entity.getLocation().getBlock();
+        Block result = null;
+        int distance = 0;
+        final int r = 6;
+        for (int z = -r; z <= r; z += 1) {
+            for (int x = -r; x <= r; x += 1) {
+                for (int y = -r; y <= r; y += 1) {
+                    Block block = center.getRelative(x, y, z);
+                    if (block.getType() == Material.CAULDRON && (int)block.getData() > 0) {
                         int d = blockDistance(block, center);
                         if (result == null || d < distance) {
                             result = block;

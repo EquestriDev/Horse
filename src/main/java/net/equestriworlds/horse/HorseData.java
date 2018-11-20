@@ -51,9 +51,10 @@ final class HorseData {
     // Feed
     private double body = 4.0; // See BodyConditionScale
     private double hydration = 5.0;
-    private int eatCooldown = 3600;
-    private int drinkCooldown = 3600;
-    private int burnFatCooldown = 3600;
+    private int eatCooldown = Util.ONE_HOUR;
+    private int drinkCooldown = Util.ONE_HOUR;
+    private int burnFatCooldown = Util.ONE_HOUR;
+    private int dehydrateCooldown = Util.ONE_HOUR;
     // Breeding
     BreedingStage breedingStage = BreedingStage.READY;
     int breedingCooldown = 0;
@@ -330,6 +331,20 @@ final class HorseData {
 
     void setBody(double val) {
         this.body = Util.roundDouble(val, 6);
+    }
+
+    // Hydration
+
+    HydrationLevel getHydrationLevel() {
+        return HydrationLevel.of(this.hydration);
+    }
+
+    void setHydrationLevel(HydrationLevel level) {
+        this.hydration = (double)level.score;
+    }
+
+    void setHydration(double val) {
+        this.hydration = Util.roundDouble(val, 6);
     }
 
     // --- Parents
