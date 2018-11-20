@@ -13,18 +13,33 @@ import lombok.Getter;
  */
 @Getter
 enum HorseAge implements HumanReadable {
-    FOAL      (-1,  0),
-    YEARLING  (0,   7), // Not ridable
-    ADOLESCENT(0,  14), // Ridable, not breedable
-    ADULT     (0,  28);
+    FOAL      (0, 7),
+    YEARLING  (7, 7), // Not ridable
+    ADOLESCENT(14, 14), // Ridable, not breedable
+    ADULT     (28, 0);
 
     public final String humanName;
-    public final int minecraftAge;
     public final int daysOld;
+    public final int duration;
 
-    HorseAge(int minecraftAge, int daysOld) {
+    HorseAge(int daysOld, int duration) {
         this.humanName = HumanReadable.enumToHuman(this);
-        this.minecraftAge = minecraftAge;
         this.daysOld = daysOld;
+        this.duration = duration;
+    }
+
+    HorseAge next() {
+        switch (this) {
+        case FOAL: return YEARLING;
+        case YEARLING: return ADOLESCENT;
+        case ADOLESCENT: return ADULT;
+        case ADULT:
+        default:
+            throw new IllegalStateException("cannot call next() on HorseAge.ADULT");
+        }
+    }
+
+    String indefiniteArticle() {
+        return this == FOAL || this == YEARLING ? "a" : "an";
     }
 }

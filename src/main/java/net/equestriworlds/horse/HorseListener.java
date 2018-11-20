@@ -3,7 +3,6 @@ package net.equestriworlds.horse;
 import lombok.RequiredArgsConstructor;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -168,9 +167,12 @@ final class HorseListener implements Listener {
             player.playSound(player.getEyeLocation(), Sound.ENTITY_HORSE_ANGRY, SoundCategory.NEUTRAL, 0.5f, 1.0f);
             player.spawnParticle(Particle.VILLAGER_ANGRY, entity.getEyeLocation(), 1, 0.25, 0.25, 0.25, 0.0);
             // Fix orientation
-            final Location location = player.getLocation();
-            Bukkit.getScheduler().runTask(this.plugin, () -> player.teleport(location));
+            player.teleport(player.getLocation());
             return;
+        }
+        // Prevent foal growup
+        if (spawned.data.getAge() == HorseAge.FOAL) {
+            Bukkit.getScheduler().runTask(this.plugin, () -> entity.setAge(Integer.MIN_VALUE));
         }
         // Crossties
         ItemStack item = event.getHand() == EquipmentSlot.OFF_HAND ? player.getInventory().getItemInOffHand() : player.getInventory().getItemInMainHand();

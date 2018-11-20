@@ -17,7 +17,6 @@ import org.bukkit.event.entity.EntityBreedEvent;
 @RequiredArgsConstructor
 final class Breeding implements Listener {
     private final HorsePlugin plugin;
-    private static final int ONE_DAY = 60 * 60 * 24;
 
     static final class BreedException extends Exception {
         final Type type;
@@ -63,8 +62,6 @@ final class Breeding implements Listener {
         if (spawnedParentA == null && spawnedParentB == null) return;
         // If the breeder went offline, we better cancel.
         event.setCancelled(true);
-        spawnedParentA.getEntity().setAge(1200);
-        spawnedParentB.getEntity().setAge(1200);
         if (!(event.getBreeder() instanceof Player)) return;
         Player breeder = (Player)event.getBreeder();
         BreedInfo info;
@@ -84,15 +81,17 @@ final class Breeding implements Listener {
         }
         // Mother is pregnant
         info.mother.data.setBreedingStage(BreedingStage.PREGNANT);
+        info.mother.getEntity().setAge(Integer.MAX_VALUE);
         HorseData.Pregnancy pregnancy = new HorseData.Pregnancy();
         pregnancy.conceived = Instant.now().getEpochSecond();
-        info.mother.data.setBreedingCooldown(ONE_DAY * 6 + ThreadLocalRandom.current().nextInt(ONE_DAY)); // 6 - 7 days
+        info.mother.data.setBreedingCooldown(Util.ONE_DAY * 6 + ThreadLocalRandom.current().nextInt(Util.ONE_DAY)); // 6 - 7 days
         pregnancy.partnerId = info.father.data.getId();
         info.mother.data.setPregnancy(pregnancy);
         this.plugin.getDatabase().updateHorse(info.mother.data);
         // Father needs to recover
         info.father.data.setBreedingStage(BreedingStage.RECOVERY);
-        info.father.data.setBreedingCooldown(ONE_DAY);
+        info.father.getEntity().setAge(Integer.MAX_VALUE);
+        info.father.data.setBreedingCooldown(Util.ONE_DAY);
         this.plugin.getDatabase().updateHorse(info.father.data);
         // Message
         String msg = "" + ChatColor.GOLD + info.mother.data.getMaskedName() + ChatColor.GOLD + " is now pregnant from " + info.father.data.getMaskedName() + ChatColor.GOLD + ".";
@@ -186,7 +185,7 @@ final class Breeding implements Listener {
                 // Miscarriage
                 if (father == null || pregnancy.flags.contains(HorseData.Pregnancy.Flag.MISCARRIAGE)) {
                     spawned.data.setBreedingStage(BreedingStage.RECOVERY);
-                    spawned.data.setBreedingCooldown(ONE_DAY * 7);
+                    spawned.data.setBreedingCooldown(Util.ONE_DAY * 7);
                     this.plugin.getDatabase().updateHorse(spawned.data);
                     if (owner != null) {
                         owner.sendMessage(ChatColor.RED + "Your mare " + spawned.data.getMaskedName() + ChatColor.RED + " just had a miscarriage.");
@@ -196,7 +195,7 @@ final class Breeding implements Listener {
                 }
                 // Finalize birth
                 spawned.data.setBreedingStage(BreedingStage.NURTURE);
-                spawned.data.setBreedingCooldown(ONE_DAY * 7);
+                spawned.data.setBreedingCooldown(Util.ONE_DAY * 7);
                 this.plugin.getDatabase().updateHorse(spawned.data);
                 SpawnedHorse child = giveBirth(spawned, father);
                 if (owner != null) {
@@ -207,11 +206,13 @@ final class Breeding implements Listener {
             }
             return;
         }
+        case RECOVERY:
+        case NURTURE:
         default:
-            // Handle all other cases: RECOVERY, NURTURE.
             if (spawned.data.getBreedingCooldown() == 0) {
                 spawned.data.setBreedingStage(BreedingStage.READY);
                 this.plugin.getDatabase().updateHorse(spawned.data);
+                spawned.getEntity().setAge(0);
             }
         }
     }
@@ -227,6 +228,7 @@ final class Breeding implements Listener {
         child.setMotherId(mother.data.getId());
         child.setFatherId(father.getId());
         child.setAge(HorseAge.FOAL);
+        child.setAgeCooldown(HorseAge.FOAL.duration * Util.ONE_DAY);
         Random random = ThreadLocalRandom.current();
         HorseData inherit = random.nextBoolean() ? mother.data : father;
         child.setBreed(inherit.getBreed());

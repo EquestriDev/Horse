@@ -14,6 +14,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Getter;
+import net.md_5.bungee.api.ChatColor;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -353,6 +354,20 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
             spawned.data.passSecond(now);
             this.feeding.passSecond(spawned, now);
             if (spawned.data.getBreedingStage() != BreedingStage.READY) this.breeding.passSecond(spawned, now);
+            if (spawned.data.getAge() != HorseAge.ADULT && spawned.data.getAgeCooldown() == 0) {
+                HorseAge nx = spawned.data.getAge().next();
+                spawned.data.setAge(nx);
+                spawned.data.setAgeCooldown(nx.duration * Util.ONE_DAY);
+                spawned.getEntity().setAge(0);
+                this.database.updateHorse(spawned.data);
+                Player owner = spawned.data.getOwningPlayer();
+                if (owner != null) {
+                    String txt = ChatColor.GOLD + "Your " + spawned.data.getGender().humanName.toLowerCase() + " " + spawned.data.getMaskedName() + ChatColor.GOLD + " has grown up and is now " + nx.indefiniteArticle() + " " + ChatColor.BOLD + nx.humanName + ChatColor.RESET + ChatColor.GOLD + ".";
+                    owner.sendMessage(txt);
+                    owner.sendActionBar(txt);
+                    owner.playSound(owner.getEyeLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 0.5f, 2.0f);
+                }
+            }
         }
     }
 

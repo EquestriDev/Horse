@@ -228,6 +228,9 @@ final class EditCommand extends CommandBase {
             if (data.getMarkings() != null && !databreed.markings.contains(data.getMarkings())) data.randomize(this.plugin, "markings");
             if (data.getMarkings() == null && !databreed.markings.isEmpty()) data.randomize(this.plugin, "markings");
         }
+        if (field == this.age) {
+            if (data.getAge() != HorseAge.ADULT) data.setAgeCooldown(data.getAge().duration * Util.ONE_DAY);
+        }
         if (data.getId() >= 0) this.plugin.updateHorseEntity(data);
         showEditingMenu(player, data);
         return true;

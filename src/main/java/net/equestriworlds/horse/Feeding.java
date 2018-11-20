@@ -198,7 +198,7 @@ final class Feeding implements Listener {
             }
             }
         }
-        // Once per day, lose body value.
+        // Burn fat = lose body value.
         if (spawned.data.getBurnFatCooldown() == 0) {
             switch (spawned.data.getAge()) {
             case FOAL:

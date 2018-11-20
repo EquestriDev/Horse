@@ -42,6 +42,7 @@ final class HorseData {
     private HorseGender gender;
     private long born; // Unix Time
     private HorseAge age;
+    private int ageCooldown;
     private HorseBreed breed;
     // Minecraft Properties
     private HorseColor color;
@@ -159,7 +160,13 @@ final class HorseData {
         }
         entity.setJumpStrength(this.jump);
         entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.crosstie == null ? this.speed : 0.0);
-        entity.setAge(this.age.minecraftAge);
+        if (this.age == HorseAge.FOAL) {
+            entity.setAge(Integer.MIN_VALUE);
+        } else if (this.breedingStage == BreedingStage.READY) {
+            entity.setAge(0);
+        } else {
+            entity.setAge(Integer.MAX_VALUE);
+        }
         entity.setAgeLock(true);
         entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(20.0);
         entity.setHealth(20.0);
@@ -287,6 +294,7 @@ final class HorseData {
     // --- Timing
 
     void passSecond(long now) {
+        if (this.ageCooldown > 0) this.ageCooldown -= 1;
         if (this.eatCooldown > 0) this.eatCooldown -= 1;
         if (this.drinkCooldown > 0) this.drinkCooldown -= 1;
         if (this.burnFatCooldown > 0) this.burnFatCooldown -= 1;
