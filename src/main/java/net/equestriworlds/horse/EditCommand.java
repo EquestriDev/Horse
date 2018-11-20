@@ -134,8 +134,8 @@ final class EditCommand extends CommandBase {
                 data.setSpeed(0.38);
                 break;
             case "dressage":
-                data.setJump(0.79);
-                data.setSpeed(0.225);
+                data.setJump(0.72);
+                data.setSpeed(0.14);
                 break;
             case "max":
                 data.setJump(0.79);
