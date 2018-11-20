@@ -26,7 +26,7 @@ public final class Util {
     }
 
     public static String genitive(String name) {
-        return name.endsWith("s") ? name + "'" : name + "'s";
+        return ChatColor.stripColor(name).endsWith("s") ? name + "'" : name + "'s";
     }
 
     public static String maskMoney(String format) {

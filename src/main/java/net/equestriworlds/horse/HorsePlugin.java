@@ -47,6 +47,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     // --- Constants
     public static final String SCOREBOARD_MARKER = "equestriworlds.horse";
     public static final String ITEM_MARKER = "equestriworlds.item";
+    public static final String ITEM_USES = "equestriworlds.uses";
     // --- Horse Data
     private HorseDatabase database;
     private List<HorseData> horses;

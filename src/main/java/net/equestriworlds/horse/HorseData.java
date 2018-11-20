@@ -108,7 +108,7 @@ final class HorseData {
     static final class GroomingData {
         long expiration;
         int appearance;
-        int wash, clip, brush, hoof, comb, shed, hair, oil, sheen;
+        int wash, clip, brush, hoof, comb, shed, hair, face, oil, sheen;
         transient long cooldown;
     }
 

@@ -37,6 +37,7 @@ final class Grooming implements Listener {
         COMB       (GroomingData::getComb,  GroomingData::setComb,  1, 6),
         SHED       (GroomingData::getShed,  GroomingData::setShed,  1, 3),
         COMB_HAIR  (GroomingData::getHair,  GroomingData::setHair,  1, 2),
+        BRUSH_FACE (GroomingData::getFace,  GroomingData::setFace,  1, 2),
         OIL_HOOVES (GroomingData::getOil,   GroomingData::setOil,   1, 4),
         SHEEN      (GroomingData::getSheen, GroomingData::setSheen, 1, 3);
         final Function<GroomingData, Integer> getter;
@@ -56,35 +57,38 @@ final class Grooming implements Listener {
 
     @Getter
     enum Tool implements HumanReadable {
-        WATER_BUCKET (null, Activity.WASH,        new ItemStack(Material.WATER_BUCKET)),
-        SHAMPOO      (null, Activity.WASH,        new ItemStack(Material.INK_SACK, 1, (short)10)), // Lime dye
-        SWEAT_SCRAPER(null, Activity.WASH,        new ItemStack(Material.BLAZE_POWDER)),
-        CLIPPER      (null, Activity.CLIP,        new ItemStack(Material.SHEARS)),
-        BRUSH        (null, Activity.BRUSH,       new ItemStack(Material.BLAZE_ROD)),
-        HOOF_PICK    (null, Activity.PICK_HOOVES, new ItemStack(Material.QUARTZ)),
-        COMB         (null, Activity.COMB,        new ItemStack(Material.FLINT)),
-        SHEDDING_TOOL(null, Activity.SHED,        new ItemStack(Material.NETHER_BRICK_ITEM)),
-        MANE_BRUSH   (null, Activity.COMB_HAIR,   new ItemStack(Material.INK_SACK, 1, (short)13)), // Magenta dye
-        HOOF_OIL     (null, Activity.OIL_HOOVES,  new ItemStack(Material.INK_SACK)),
-        SHOW_SHEEN   (null, Activity.SHEEN,       new ItemStack(Material.GOLD_NUGGET));
+        WATER_BUCKET      (Activity.WASH,        1,  new ItemStack(Material.WATER_BUCKET)),
+        SHAMPOO           (Activity.WASH,        15, new ItemStack(Material.INK_SACK, 1, (short)10)), // Lime dye
+        SWEAT_SCRAPER     (Activity.WASH,        45, new ItemStack(Material.BLAZE_POWDER)),
+        CLIPPERS          (Activity.CLIP,        45, new ItemStack(Material.SHEARS)),
+        HARD_BRUSH        (Activity.BRUSH,       45, new ItemStack(Material.BLAZE_ROD)),
+        HOOF_PICK         (Activity.PICK_HOOVES, 45, new ItemStack(Material.QUARTZ)),
+        CURRY_COMB        (Activity.COMB,        45, new ItemStack(Material.FLINT)),
+        SHEDDING_BLADE    (Activity.SHED,        45, new ItemStack(Material.NETHER_BRICK_ITEM)),
+        MANE_AND_TAIL_COMB(Activity.COMB_HAIR,   45, new ItemStack(Material.INK_SACK, 1, (short)13)), // Magenta dye
+        FACE_BRUSH        (Activity.BRUSH_FACE,  45, new ItemStack(Material.INK_SACK, 1, (short)7)),  // Gray dye
+        HOOF_OIL          (Activity.OIL_HOOVES,  15, new ItemStack(Material.INK_SACK)),
+        SHOW_SHEEN        (Activity.SHEEN,       15, new ItemStack(Material.GOLD_NUGGET));
 
         public final String key;
         public final String humanName;
         public final Activity activity;
-        public final ItemStack toolItem;
+        public final int uses;
+        public final ItemStack item;
 
-        Tool(final String humanName, final Activity activity, final ItemStack toolItem) {
+        Tool(final Activity activity, final int uses, final ItemStack item) {
             this.key = name().toLowerCase();
-            this.humanName = humanName != null ? humanName : HumanReadable.enumToHuman(this);
+            this.humanName = HumanReadable.enumToHuman(this);
             this.activity = activity;
-            this.toolItem = toolItem;
+            this.uses = uses;
+            this.item = item;
         }
     }
 
     Tool findTool(ItemStack item) {
         Optional<Object> opt = this.plugin.getDirtyNBT().accessItemNBT(item, false);
         if (!opt.isPresent()) return null;
-        opt = this.plugin.getDirtyNBT().getNBT(opt, HorsePlugin.ITEM_MARKER); // Make a constant for this
+        opt = this.plugin.getDirtyNBT().getNBT(opt, HorsePlugin.ITEM_MARKER);
         if (!opt.isPresent()) return null;
         String tag = (String)this.plugin.getDirtyNBT().fromNBT(opt);
         try {
@@ -94,22 +98,42 @@ final class Grooming implements Listener {
         }
     }
 
+    int getUses(ItemStack item) {
+        if (item.getType() == Material.WATER_BUCKET) return 1;
+        Optional<Object> opt = this.plugin.getDirtyNBT().accessItemNBT(item, false);
+        if (!opt.isPresent()) return 0;
+        opt = this.plugin.getDirtyNBT().getNBT(opt, HorsePlugin.ITEM_USES);
+        if (!opt.isPresent()) return 0;
+        return (int)this.plugin.getDirtyNBT().fromNBT(opt);
+    }
+
+    void setUses(ItemStack item, int uses) {
+        Optional<Object> opt = this.plugin.getDirtyNBT().accessItemNBT(item, false);
+        if (!opt.isPresent()) throw new IllegalArgumentException("item has no nbt tag");
+        this.plugin.getDirtyNBT().setNBT(opt, HorsePlugin.ITEM_USES, uses);
+    }
+
     ItemStack spawnTool(Tool tool) {
-        if (tool == Tool.WATER_BUCKET) return Tool.WATER_BUCKET.toolItem.clone();
-        ItemStack result = this.plugin.getDirtyNBT().toCraftItemStack(tool.toolItem.clone());
+        if (tool == Tool.WATER_BUCKET) return Tool.WATER_BUCKET.item.clone();
+        ItemStack result = this.plugin.getDirtyNBT().toCraftItemStack(tool.item.clone());
         Optional<Object> opt = this.plugin.getDirtyNBT().accessItemNBT(result, true);
         this.plugin.getDirtyNBT().setNBT(opt, HorsePlugin.ITEM_MARKER, tool.key);
-        if (tool.activity != Activity.WASH) result.setAmount(tool.activity.maximum);
-        ItemMeta meta = result.getItemMeta();
+        this.plugin.getDirtyNBT().setNBT(opt, HorsePlugin.ITEM_USES, tool.uses);
+        updateAppearance(result, tool, tool.uses);
+        return result;
+    }
+
+    void updateAppearance(ItemStack item, Tool tool, int uses) {
+        ItemMeta meta = item.getItemMeta();
         meta.setDisplayName(ChatColor.AQUA + tool.humanName);
         ArrayList<String> lore = new ArrayList<>();
-        lore.add(ChatColor.GRAY + "Horse Grooming Tool");
+        lore.add(ChatColor.GRAY + "Grooming Tool");
         for (String line: this.plugin.getConfig().getStringList("items." + tool.key + ".lore")) {
             lore.add(line);
         }
+        lore.add(ChatColor.GRAY + "Uses: " + ChatColor.WHITE + uses + ChatColor.GRAY + "/" + ChatColor.WHITE + tool.uses);
         meta.setLore(lore);
-        result.setItemMeta(meta);
-        return result;
+        item.setItemMeta(meta);
     }
 
     /**
@@ -181,14 +205,25 @@ final class Grooming implements Listener {
         }
         // Consume item and save horse.
         if (success) {
-            if (tool != Tool.WATER_BUCKET) item.setAmount(item.getAmount() - 1);
+            if (tool != Tool.WATER_BUCKET) {
+                int uses = getUses(item) - 1;
+                if (uses <= 0) {
+                    player.playSound(player.getEyeLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+                    item.setAmount(0);
+                } else {
+                    setUses(item, uses);
+                    updateAppearance(item, tool, uses);
+                }
+            }
             groomingData.cooldown = now + 500L;
             this.plugin.getDatabase().updateHorse(spawned.data);
             String title = successNotification(player, spawned, tool, value);
+            player.sendMessage(title);
             player.sendActionBar(title);
             successEffect(player, spawned, tool, value);
         } else {
             String title = failNotification(player, spawned, tool, value);
+            player.sendMessage(ChatColor.RED + title);
             player.sendActionBar(ChatColor.RED + title);
         }
     }
@@ -197,23 +232,27 @@ final class Grooming implements Listener {
         StringBuilder sb = new StringBuilder(colors[0].toString());
         for (int i = 1; i < colors.length; i += 1) sb.append(colors[i].toString());
         String c = sb.toString();
-        return String.format(c + fmt, spawned.data.getName() + ChatColor.RESET + c);
+        return String.format(c + fmt, spawned.data.getMaskedName() + ChatColor.RESET + c);
     }
 
     String successNotification(Player player, SpawnedHorse spawned, Tool tool, int value) {
+        HorseData data = spawned.data;
         switch (tool) {
         case WATER_BUCKET:  return mask("You soak %s.", spawned, ChatColor.DARK_BLUE);
         case SHAMPOO:       return mask("%s is now shampooed.", spawned, ChatColor.GREEN);
         case SWEAT_SCRAPER: return mask("You use the sweat scraper on %s.", spawned, ChatColor.GOLD);
-        case CLIPPER:       return mask("You use the clipper on %s.", spawned, ChatColor.DARK_GRAY);
-        case BRUSH:
+        case CLIPPERS:      return mask("You use the clippers on %s.", spawned, ChatColor.DARK_GRAY);
+        case HARD_BRUSH: {
+            final String c = "" + ChatColor.GOLD;
+            final String cc = "" + ChatColor.GOLD + ChatColor.BOLD;
             switch (value) {
-            case 0:          return mask("You brush %s once.", spawned, ChatColor.BLACK);
-            case 1:          return mask("You brush %s twice.", spawned, ChatColor.DARK_BLUE);
-            case 2:          return mask("You brush %s three times.", spawned, ChatColor.DARK_AQUA);
-            case 3:          return mask("You brush %s four times.", spawned, ChatColor.AQUA);
-            case 4: default: return mask("You finished brushing %s.", spawned, ChatColor.BLUE, ChatColor.BOLD);
+            case 0:          return c + "You brush " + Util.genitive(data.getMaskedName()) + c + " right shoulder.";
+            case 1:          return c + "You brush " + Util.genitive(data.getMaskedName()) + c + " right hip.";
+            case 2:          return c + "You brush " + Util.genitive(data.getMaskedName()) + c + " behind.";
+            case 3:          return c + "You brush " + Util.genitive(data.getMaskedName()) + c + " left hip.";
+            case 4: default: return "" + cc + "You brush " + Util.genitive(data.getMaskedName()) + cc + " left shoulder.";
             }
+        }
         case HOOF_PICK:
             switch (value) {
             case 0:          return mask("You pick the front left hoof of %s.", spawned, ChatColor.BLACK);
@@ -221,26 +260,29 @@ final class Grooming implements Listener {
             case 2:          return mask("You pick the back right hoof of %s.", spawned, ChatColor.GRAY);
             case 3: default: return mask("You picked all the hooves of %s.", spawned, ChatColor.WHITE, ChatColor.BOLD);
             }
-        case COMB:
+        case CURRY_COMB:
             switch (value) {
             case 0:          return mask("You comb %s once.", spawned, ChatColor.BLACK);
             case 1:          return mask("You comb %s twice.", spawned, ChatColor.DARK_GRAY);
             case 2:          return mask("You comb %s three times.", spawned, ChatColor.DARK_GRAY);
             case 3:          return mask("You comb %s four times.", spawned, ChatColor.GRAY);
             case 4:          return mask("You comb %s five times.", spawned, ChatColor.GRAY);
-            case 5: default: return mask("You finished combing %s.", spawned, ChatColor.WHITE, ChatColor.BOLD);
+            case 5: default: return mask("You finish combing %s.", spawned, ChatColor.WHITE, ChatColor.BOLD);
             }
-        case SHEDDING_TOOL:
+        case SHEDDING_BLADE:
             switch (value) {
             case 0: return          mask("You shed %s once.", spawned, ChatColor.RED);
             case 1: return          mask("You shed %s twice.", spawned, ChatColor.GOLD);
-            case 2: default: return mask("You finished shedding %s.", spawned, ChatColor.GOLD, ChatColor.BOLD);
+            case 2: default: return mask("You finish shedding %s.", spawned, ChatColor.GOLD, ChatColor.BOLD);
             }
-        case MANE_BRUSH:
+        case MANE_AND_TAIL_COMB: {
+            final String c = "" + ChatColor.LIGHT_PURPLE;
+            final String cc = "" + ChatColor.LIGHT_PURPLE + ChatColor.BOLD;
             switch (value) {
-            case 0:          return mask("You brush the mane of %s.", spawned, ChatColor.DARK_PURPLE);
-            case 1: default: return mask("You brush the tail of %s.", spawned, ChatColor.LIGHT_PURPLE);
+            case 0:          return c + "You brush " + Util.genitive(data.getMaskedName()) + c + " mane.";
+            case 1: default: return c + "You brush " + Util.genitive(data.getMaskedName()) + c + " tail.";
             }
+        }
         case HOOF_OIL:
             switch (value) {
             case 0:          return mask("You oil the front left hoof of %s.", spawned, ChatColor.BLACK);
@@ -254,6 +296,14 @@ final class Grooming implements Listener {
             case 1:          return mask("You rub the show sheen on %s.", spawned, ChatColor.GOLD);
             case 2: default: return mask("%s is now all shiny.", spawned, ChatColor.GOLD, ChatColor.BOLD);
             }
+        case FACE_BRUSH: {
+            String c = "" + ChatColor.GRAY;
+            String cc = "" + ChatColor.GRAY + ChatColor.BOLD;
+            switch (value) {
+            case 0:          return c + "You brush " + Util.genitive(data.getMaskedName()) + c + " face.";
+            case 1: default: return cc + "You finish brushing " + Util.genitive(spawned.data.getMaskedName()) + cc + " face.";
+            }
+        }
         default: throw new IllegalStateException("Unsupported tool: " + tool);
         }
     }
@@ -283,12 +333,12 @@ final class Grooming implements Listener {
             w.spawnParticle(Particle.BLOCK_DUST, e, 24, r, r, r, 0.0, Material.WOOL.getNewData((byte)8)); // light gray wool
             break;
         }
-        case CLIPPER: {
+        case CLIPPERS: {
             w.playSound(l, Sound.ENTITY_SHEEP_SHEAR, SoundCategory.MASTER, v, 2.0f);
             w.spawnParticle(Particle.BLOCK_DUST, e, 24, r, r, r, 0.0, Material.WOOL.getNewData((byte)7)); // dark gray wool
             break;
         }
-        case BRUSH: {
+        case HARD_BRUSH: {
             w.playSound(l, Sound.ITEM_HOE_TILL, SoundCategory.MASTER, v, 0.8f);
             w.spawnParticle(Particle.CRIT, e, 16, r, r, r, 0.5);
             break;
@@ -298,17 +348,22 @@ final class Grooming implements Listener {
             w.spawnParticle(Particle.SMOKE_NORMAL, l, 8, r, 0.0, r, 0.0);
             break;
         }
-        case COMB: {
+        case CURRY_COMB: {
             w.playSound(l, Sound.ITEM_HOE_TILL, SoundCategory.MASTER, v, 0.8f);
             w.spawnParticle(Particle.CRIT, e, 16, r, r, r, 0.5);
             break;
         }
-        case SHEDDING_TOOL: {
+        case SHEDDING_BLADE: {
             w.playSound(l, Sound.ITEM_HOE_TILL, SoundCategory.MASTER, v, 0.8f);
             w.spawnParticle(Particle.CRIT, e, 16, r, r, r, 0.5);
             break;
         }
-        case MANE_BRUSH: {
+        case MANE_AND_TAIL_COMB: {
+            w.playSound(l, Sound.BLOCK_SAND_PLACE, SoundCategory.MASTER, v, 0.6f);
+            w.spawnParticle(Particle.CRIT, e, 16, r, r, r, 0.5);
+            break;
+        }
+        case FACE_BRUSH: {
             w.playSound(l, Sound.ITEM_HOE_TILL, SoundCategory.MASTER, v, 0.8f);
             w.spawnParticle(Particle.CRIT, e, 16, r, r, r, 0.5);
             break;
@@ -332,14 +387,15 @@ final class Grooming implements Listener {
         case WATER_BUCKET: return "Soak, then shampoo, then scrape.";
         case SHAMPOO: return "Soak, then shampoo, then scrape.";
         case SWEAT_SCRAPER: return "Soak, then shampoo, then scrape.";
-        case CLIPPER: return "Already clipped.";
-        case BRUSH: return "Already brushed.";
+        case CLIPPERS: return "Already clipped.";
+        case HARD_BRUSH: return "Already brushed.";
         case HOOF_PICK: return "Already picked hooves.";
-        case COMB: return "Already combed.";
-        case SHEDDING_TOOL: return "Already shed.";
-        case MANE_BRUSH: return "Already brushed mane.";
+        case CURRY_COMB: return "Already combed.";
+        case SHEDDING_BLADE: return "Already shed.";
+        case MANE_AND_TAIL_COMB: return "Already brushed mane.";
         case HOOF_OIL: return "Already oiled hooves.";
         case SHOW_SHEEN: return "Already applied show sheen.";
+        case FACE_BRUSH: return "Face sufficiently brushed.";
         default: throw new IllegalStateException("Unsupported tool: " + tool);
         }
     }
