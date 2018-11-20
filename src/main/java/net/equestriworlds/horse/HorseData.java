@@ -300,6 +300,7 @@ final class HorseData {
         if (this.ageCooldown > 0) this.ageCooldown -= 1;
         if (this.eatCooldown > 0) this.eatCooldown -= 1;
         if (this.drinkCooldown > 0) this.drinkCooldown -= 1;
+        if (this.dehydrateCooldown > 0) this.dehydrateCooldown -= 1;
         if (this.burnFatCooldown > 0) this.burnFatCooldown -= 1;
         if (this.breedingCooldown > 0) this.breedingCooldown -= 1;
         this.lastSeen = now;
