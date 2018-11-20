@@ -233,18 +233,14 @@ final class Feeding implements Listener {
                 // If we're already fully hydrated, wait another our.
                 spawned.data.setDrinkCooldown(Util.ONE_HOUR);
             } else if (!spawned.canFreeroam()) {
-                System.out.println("!canFreeroam");
                 // We can only drink if we're free.
                 spawned.data.setDrinkCooldown(Util.ONE_MINUTE);
             } else {
-                System.out.println("!else");
                 // We are thirsty and can move freely.  Try to drink.
                 Block waterBlock = findWater(spawned.getEntity());
                 if (waterBlock == null) {
-                    System.out.println("waterBlock == null");
                     spawned.data.setDrinkCooldown(Util.ONE_MINUTE);
                 } else {
-                    System.out.println("waterBlock != null");
                     int fill = (int)waterBlock.getData();
                     waterBlock.setData((byte)(fill - 1));
                     double hydration = spawned.data.getHydration();
