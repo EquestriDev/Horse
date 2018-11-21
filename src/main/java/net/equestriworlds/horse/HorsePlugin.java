@@ -3,6 +3,7 @@ package net.equestriworlds.horse;
 import com.google.gson.Gson;
 import java.io.File;
 import java.io.FileReader;
+import java.io.InputStreamReader;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +22,8 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Bat;
 import org.bukkit.entity.Entity;
@@ -66,6 +69,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     // Data
     private Map<UUID, HorseBrand> horseBrands;
     private List<String> horseNames; // lazy
+    private ConfigurationSection itemsConfig; // lazy
     // --- Dirty
     private net.equestriworlds.horse.dirty.NBT dirtyNBT = new net.equestriworlds.horse.dirty.NBT();
     private net.equestriworlds.horse.dirty.Path dirtyPath = new net.equestriworlds.horse.dirty.Path();
@@ -302,6 +306,15 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
             }
         }
         return this.horseNames;
+    }
+
+    ConfigurationSection getItemsConfig() {
+        if (this.itemsConfig == null) {
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "items.yml"));
+            yaml.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(getResource("items.yml"))));
+            this.itemsConfig = yaml;
+        }
+        return this.itemsConfig;
     }
 
     String randomHorseName(Random random) {

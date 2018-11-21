@@ -128,7 +128,7 @@ final class Grooming implements Listener {
         meta.setDisplayName(ChatColor.AQUA + tool.humanName);
         ArrayList<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "Grooming Tool");
-        for (String line: this.plugin.getConfig().getStringList("items." + tool.key + ".lore")) {
+        for (String line: this.plugin.getItemsConfig().getStringList(tool.key + ".lore")) {
             lore.add(line);
         }
         lore.add(ChatColor.GRAY + "Uses: " + ChatColor.WHITE + uses + ChatColor.GRAY + "/" + ChatColor.WHITE + tool.uses);

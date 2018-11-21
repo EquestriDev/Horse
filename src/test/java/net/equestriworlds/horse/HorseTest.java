@@ -2,12 +2,15 @@ package net.equestriworlds.horse;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import java.io.FileInputStream;
 import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.bukkit.Sound;
 import org.junit.Assert;
 import org.junit.Test;
+import org.yaml.snakeyaml.Yaml;
 
 public final class HorseTest {
     public void testHorseList() {
@@ -77,6 +80,53 @@ public final class HorseTest {
                 } else {
                     out.print(markings.humanName);
                 }
+                out.print("<br/>");
+            }
+            out.print("</td>");
+            out.print("</tr>");
+        }
+        out.println("</table>");
+        out.close();
+    }
+
+    @Test
+    public void tools() throws java.io.IOException {
+        java.io.PrintStream out = new java.io.PrintStream("target/tools.html");
+        out.print("<table border=1 style='text-align:right;'>");
+        out.print("<tr><th>#</th><th>Tool</th><th>Activity</th><th>Appearance</th><th>Uses</th><th>Item</th><th>Lore</th></tr>");
+        Yaml yaml = new Yaml();
+        Map<String, Object> cfg = (Map<String, Object>)yaml.load(new FileInputStream("src/main/resources/items.yml"));
+        int index = 1;
+        for (Grooming.Tool tool: Grooming.Tool.values()) {
+            Map<String, Object> sec = (Map<String, Object>)cfg.get(tool.key);
+            List<String> lore;
+            if (sec == null) {
+                lore = Arrays.asList("N/A");
+            } else {
+                lore = (List<String>)sec.get("lore");
+            }
+            out.print("<tr>");
+            out.print("<td style='padding:8px;'>");
+            out.print("" + (index++));
+            out.print("</td>");
+            out.print("<td style='padding:8px;'>");
+            out.print(tool.humanName);
+            out.print("</td>");
+            out.print("<td style='padding:8px;'>");
+            out.print("" + tool.activity.name().toLowerCase());
+            out.print("</td>");
+            out.print("<td style='padding:8px;'>");
+            out.print("" + tool.activity.maximum + "x" + tool.activity.appearance);
+            out.print("</td>");
+            out.print("<td style='padding:8px;'>");
+            out.print("" + tool.uses);
+            out.print("</td>");
+            out.print("<td style='padding:8px;'>");
+            out.print("" + tool.item.getData());
+            out.print("</td>");
+            out.print("<td style='padding:8px;text-align:left;color:purple;font-style:italic;font-family:monospace;'>");
+            for (String l: lore) {
+                out.print(l);
                 out.print("<br/>");
             }
             out.print("</td>");

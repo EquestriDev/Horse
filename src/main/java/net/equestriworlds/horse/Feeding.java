@@ -77,7 +77,7 @@ final class Feeding implements Listener {
         meta.setDisplayName(ChatColor.GOLD + feed.humanName);
         ArrayList<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "Horse Feed");
-        for (String line: this.plugin.getConfig().getStringList("items." + feed.key + ".lore")) {
+        for (String line: this.plugin.getItemsConfig().getStringList(feed.key + ".lore")) {
             lore.add(line);
         }
         meta.setLore(lore);
