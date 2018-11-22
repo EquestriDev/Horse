@@ -396,17 +396,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         double distanceSquared = followLocation.distanceSquared(horseLocation);
         if (distanceSquared > 128.0 * 128.0) return false;
         if (distanceSquared < 4.0) return true;
-        double speed;
-        if (distanceSquared > 32.0 * 32.0) {
-            speed = 2.25;
-        } else if (distanceSquared > 16.0 * 16.0) {
-            speed = 2.0;
-        } else if (distanceSquared > 8.0 * 8.0) {
-            speed = 1.75;
-        } else {
-            speed = 1.5;
-        }
-        this.dirtyPath.navigate(spawned.getEntity(), followedPlayer.getLocation(), speed);
+        this.dirtyPath.navigate(spawned.getEntity(), followedPlayer.getLocation(), 1.0);
         return true;
     }
 
