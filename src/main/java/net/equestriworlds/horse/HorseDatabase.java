@@ -9,7 +9,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 
@@ -48,6 +50,13 @@ final class HorseDatabase {
                 + "`owner` VARCHAR(40) NOT NULL UNIQUE, "
                 + "`format` VARCHAR(255) NOT NULL"
                 + ")";
+            getConnection().createStatement().execute(sql);
+            sql = "CREATE TABLE IF NOT EXISTS `extra` ("
+                + "`id` INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "`horse_id` INTEGER NOT NULL, "
+                + "`key` VARCHAR(40) NOT NULL, "
+                + "`data` TEXT, "
+                + "CONSTRAINT `unique_key` UNIQUE (`horse_id`, `key`) ON CONFLICT REPLACE)";
             getConnection().createStatement().execute(sql);
         } catch (SQLException sqle) {
             sqle.printStackTrace();
@@ -145,5 +154,38 @@ final class HorseDatabase {
         } catch (SQLException sqle) {
             throw new IllegalStateException(sqle);
         }
+    }
+
+    // --- Extra Data
+
+    boolean saveExtraData(int horseId, String key, String value) {
+        if (horseId < 0) throw new IllegalArgumentException("horse id must be positive: " + horseId);
+        if (key == null) throw new IllegalArgumentException("key cannot be null");
+        String sql = "INSERT INTO `extra` (`horse_id`, `key`, `data`) VALUES (?, ?, ?)";
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
+            statement.setInt(1, horseId);
+            statement.setString(2, key);
+            statement.setString(3, value);
+            return 1 == statement.executeUpdate();
+        } catch (SQLException sqle) {
+            throw new IllegalStateException(sqle);
+        }
+    }
+
+    Map<String, String> loadExtraData(int horseId) {
+        String sql = "SELECT * FROM `extra` WHERE horse_id = ?";
+        Map<String, String> result = new HashMap<>();
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
+            statement.setInt(1, horseId);
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                String key = resultSet.getString("key");
+                String value = resultSet.getString("data");
+                result.put(key, value);
+            }
+        } catch (SQLException sqle) {
+            throw new IllegalStateException(sqle);
+        }
+        return result;
     }
 }

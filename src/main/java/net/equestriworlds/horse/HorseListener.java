@@ -85,7 +85,7 @@ final class HorseListener implements Listener {
                 if (spawned != null) {
                     spawned.data.storeLocation(entity.getLocation());
                     spawned.data.storeInventory(this.plugin, entity);
-                    this.plugin.getDatabase().updateHorse(spawned.data);
+                    this.plugin.saveHorse(spawned.data);
                 }
             }
             e.remove();
@@ -106,7 +106,7 @@ final class HorseListener implements Listener {
         if (spawned == null) return;
         spawned.data.storeLocation(entity.getLocation());
         spawned.data.storeInventory(this.plugin, entity);
-        this.plugin.getDatabase().updateHorse(spawned.data);
+        this.plugin.saveHorse(spawned.data);
     }
 
     /**
@@ -119,7 +119,7 @@ final class HorseListener implements Listener {
         SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
         if (spawned == null) return;
         spawned.data.storeLocation(entity.getLocation());
-        this.plugin.getDatabase().updateHorse(spawned.data);
+        this.plugin.saveHorse(spawned.data);
         spawned.setFollowing(null);
     }
 
@@ -134,7 +134,7 @@ final class HorseListener implements Listener {
         SpawnedHorse spawned = this.plugin.findSpawnedHorse(entity);
         if (spawned == null) return;
         spawned.data.storeLocation(entity.getLocation());
-        this.plugin.getDatabase().updateHorse(spawned.data);
+        this.plugin.saveHorse(spawned.data);
     }
 
     /**
@@ -224,7 +224,7 @@ final class HorseListener implements Listener {
                 // Success
                 crosstie.setHolder(null);
                 crosstie.setHitchB((LeashHitch)event.getLeashHolder());
-                if (crosstie.check()) spawned.data.setCrosstie(crosstie.serialize());
+                if (crosstie.check()) spawned.extra.setCrosstie(crosstie.serialize());
                 entity.getWorld().playSound(entity.getEyeLocation(), Sound.BLOCK_IRON_DOOR_CLOSE, SoundCategory.NEUTRAL, 1.0f, 2.0f);
             }
         }
@@ -262,7 +262,7 @@ final class HorseListener implements Listener {
         if (spawned == null) return;
         spawned.data.storeLocation(entity.getLocation());
         entity.eject();
-        this.plugin.getDatabase().updateHorse(spawned.data);
+        this.plugin.saveHorse(spawned.data);
     }
 
     // --- GUI

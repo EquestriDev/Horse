@@ -140,12 +140,6 @@ abstract class CommandBase {
         throw new CommandException("Horse not found: " + arg);
     }
 
-    void updateHorseData(HorseData data) throws CommandException {
-        if (!this.plugin.getDatabase().updateHorse(data)) {
-            throw new CommandException("Horse claiming failed. Please contact an administrator.");
-        }
-    }
-
     Player expectPlayer(CommandSender sender) throws PlayerExpectedException {
         if (!(sender instanceof Player)) throw new PlayerExpectedException();
         return (Player)sender;

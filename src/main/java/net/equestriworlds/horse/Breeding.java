@@ -1,8 +1,10 @@
 package net.equestriworlds.horse;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Sound;
@@ -15,8 +17,27 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityBreedEvent;
 
 @RequiredArgsConstructor
-final class Breeding implements Listener {
+public final class Breeding implements Listener {
+    public static final String COOLDOWN_BREED = "breed";
     private final HorsePlugin plugin;
+
+    enum Flag {
+        OVERWEIGHT,
+        UNDERWEIGHT,
+        PREMATURE,
+        MISCARRIAGE;
+    }
+
+    /**
+     * Stored in HorseExtra
+     */
+    @Data
+    static final class Persistence {
+        public static final String EXTRA_KEY = "pregnancy";
+        long conceived;
+        int partnerId = -1;
+        EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
+    }
 
     static final class BreedException extends Exception {
         final Type type;
@@ -82,17 +103,17 @@ final class Breeding implements Listener {
         // Mother is pregnant
         info.mother.data.setBreedingStage(BreedingStage.PREGNANT);
         info.mother.getEntity().setAge(Integer.MAX_VALUE);
-        HorseData.Pregnancy pregnancy = new HorseData.Pregnancy();
+        Persistence pregnancy = new Persistence();
         pregnancy.conceived = Instant.now().getEpochSecond();
-        info.mother.data.setBreedingCooldown(Util.ONE_DAY * 6 + ThreadLocalRandom.current().nextInt(Util.ONE_DAY)); // 6 - 7 days
+        info.mother.extra.setCooldown(COOLDOWN_BREED, Util.ONE_DAY * 6 + ThreadLocalRandom.current().nextInt(Util.ONE_DAY)); // 6 - 7 days
         pregnancy.partnerId = info.father.data.getId();
-        info.mother.data.setPregnancy(pregnancy);
-        this.plugin.getDatabase().updateHorse(info.mother.data);
+        info.mother.extra.setPregnancy(pregnancy);
+        this.plugin.saveHorse(info.mother.data);
         // Father needs to recover
         info.father.data.setBreedingStage(BreedingStage.RECOVERY);
         info.father.getEntity().setAge(Integer.MAX_VALUE);
-        info.father.data.setBreedingCooldown(Util.ONE_DAY);
-        this.plugin.getDatabase().updateHorse(info.father.data);
+        info.father.extra.setCooldown(COOLDOWN_BREED, Util.ONE_DAY);
+        this.plugin.saveHorse(info.father.data);
         // Message
         String msg = "" + ChatColor.GOLD + info.mother.data.getMaskedName() + ChatColor.GOLD + " is now pregnant from " + info.father.data.getMaskedName() + ChatColor.GOLD + ".";
         breeder.sendMessage(msg);
@@ -132,15 +153,15 @@ final class Breeding implements Listener {
      * unless the BreedingStage is READY.
      */
     void passSecond(SpawnedHorse spawned, long now) {
-        final int cooldown = spawned.data.getBreedingCooldown();
+        final int cooldown = spawned.extra.getCooldown(COOLDOWN_BREED);
         switch (spawned.data.getBreedingStage()) {
         case PREGNANT: {
             if (cooldown == 0) {
                 spawned.data.setBreedingStage(BreedingStage.LABOR);
                 Random random = ThreadLocalRandom.current();
                 // 2 hours
-                spawned.data.setBreedingCooldown(random.nextInt(3600) + random.nextInt(3600));
-                this.plugin.getDatabase().updateHorse(spawned.data);
+                spawned.extra.setCooldown(COOLDOWN_BREED, random.nextInt(3600) + random.nextInt(3600));
+                this.plugin.saveHorse(spawned.data);
                 Player owner = spawned.data.getOwningPlayer();
                 if (owner != null) {
                     owner.sendMessage(ChatColor.GOLD + "Your mare " + spawned.data.getMaskedName() + ChatColor.GOLD + " looks like it's going into labor within the next two hours. Better keep a close eye on her.");
@@ -149,44 +170,44 @@ final class Breeding implements Listener {
                 return;
             }
             // Complications
-            HorseData.Pregnancy pregnancy = spawned.data.getPregnancy();
-            if (!pregnancy.flags.contains(HorseData.Pregnancy.Flag.OVERWEIGHT) && spawned.data.getBodyCondition().score >= 7) {
-                pregnancy.flags.add(HorseData.Pregnancy.Flag.OVERWEIGHT);
+            Persistence pregnancy = spawned.extra.getPregnancy();
+            if (!pregnancy.flags.contains(Flag.OVERWEIGHT) && spawned.data.getBodyCondition().score >= 7) {
+                pregnancy.flags.add(Flag.OVERWEIGHT);
                 double dice = ThreadLocalRandom.current().nextDouble();
                 boolean badLuck = dice < 0.25;
                 this.plugin.getLogger().info("Horse `" + spawned.data.getStrippedName() + "` owned by " + spawned.data.getOwnerName(this.plugin) + " is overweight. Dice=" + (int)(dice * 100.0) + ", BadLuck=" + badLuck + ".");
                 if (badLuck) {
-                    pregnancy.flags.add(HorseData.Pregnancy.Flag.MISCARRIAGE);
+                    pregnancy.flags.add(Flag.MISCARRIAGE);
                     // TODO: Laminitis
                 }
                 // Save
-                this.plugin.getDatabase().updateHorse(spawned.data);
+                this.plugin.saveHorse(spawned.data);
             }
-            if (!pregnancy.flags.contains(HorseData.Pregnancy.Flag.UNDERWEIGHT) && spawned.data.getBodyCondition().score <= 4) {
-                pregnancy.flags.add(HorseData.Pregnancy.Flag.UNDERWEIGHT);
-                this.plugin.getDatabase().updateHorse(spawned.data);
+            if (!pregnancy.flags.contains(Flag.UNDERWEIGHT) && spawned.data.getBodyCondition().score <= 4) {
+                pregnancy.flags.add(Flag.UNDERWEIGHT);
+                this.plugin.saveHorse(spawned.data);
                 double dice = ThreadLocalRandom.current().nextDouble();
                 boolean badLuck = dice < 0.25;
                 this.plugin.getLogger().info("Horse `" + spawned.data.getStrippedName() + "` owned by " + spawned.data.getOwnerName(this.plugin) + " is underweight. Dice=" + (int)(dice * 100.0) + ", BadLuck=" + badLuck + ".");
                 if (badLuck) {
-                    pregnancy.flags.add(HorseData.Pregnancy.Flag.PREMATURE);
+                    pregnancy.flags.add(Flag.PREMATURE);
                 }
                 // Save
-                this.plugin.getDatabase().updateHorse(spawned.data);
+                this.plugin.saveHorse(spawned.data);
             }
             return;
         }
         case LABOR: {
             if (cooldown == 0) {
-                HorseData.Pregnancy pregnancy = spawned.data.getPregnancy();
-                spawned.data.setPregnancy(null);
+                Persistence pregnancy = spawned.extra.getPregnancy();
+                spawned.extra.setPregnancy(null);
                 HorseData father = this.plugin.findHorse(pregnancy.partnerId);
                 Player owner = spawned.data.getOwningPlayer();
                 // Miscarriage
-                if (father == null || pregnancy.flags.contains(HorseData.Pregnancy.Flag.MISCARRIAGE)) {
+                if (father == null || pregnancy.flags.contains(Flag.MISCARRIAGE)) {
                     spawned.data.setBreedingStage(BreedingStage.RECOVERY);
-                    spawned.data.setBreedingCooldown(Util.ONE_DAY * 7);
-                    this.plugin.getDatabase().updateHorse(spawned.data);
+                    spawned.extra.setCooldown(COOLDOWN_BREED, Util.ONE_DAY * 7);
+                    this.plugin.saveHorse(spawned.data);
                     if (owner != null) {
                         owner.sendMessage(ChatColor.RED + "Your mare " + spawned.data.getMaskedName() + ChatColor.RED + " just had a miscarriage.");
                         HorseEffects.unfriendJingle(this.plugin, owner);
@@ -195,8 +216,8 @@ final class Breeding implements Listener {
                 }
                 // Finalize birth
                 spawned.data.setBreedingStage(BreedingStage.NURTURE);
-                spawned.data.setBreedingCooldown(Util.ONE_DAY * 7);
-                this.plugin.getDatabase().updateHorse(spawned.data);
+                spawned.extra.setCooldown(COOLDOWN_BREED, Util.ONE_DAY * 7);
+                this.plugin.saveHorse(spawned.data);
                 SpawnedHorse child = giveBirth(spawned, father);
                 if (owner != null) {
                     HorseGender gender = child.data.getGender();
@@ -209,9 +230,9 @@ final class Breeding implements Listener {
         case RECOVERY:
         case NURTURE:
         default:
-            if (spawned.data.getBreedingCooldown() == 0) {
+            if (spawned.extra.getCooldown(COOLDOWN_BREED) == 0) {
                 spawned.data.setBreedingStage(BreedingStage.READY);
-                this.plugin.getDatabase().updateHorse(spawned.data);
+                this.plugin.saveHorse(spawned.data);
                 spawned.getEntity().setAge(0);
             }
         }
@@ -228,7 +249,6 @@ final class Breeding implements Listener {
         child.setMotherId(mother.data.getId());
         child.setFatherId(father.getId());
         child.setAge(HorseAge.FOAL);
-        child.setAgeCooldown(HorseAge.FOAL.duration * Util.ONE_DAY);
         Random random = ThreadLocalRandom.current();
         HorseData inherit = random.nextBoolean() ? mother.data : father;
         child.setBreed(inherit.getBreed());
@@ -237,6 +257,8 @@ final class Breeding implements Listener {
         child.setJump(mother.data.getJump() * 0.5 + father.getJump() * 0.5);
         child.setSpeed(mother.data.getSpeed() * 0.5 + father.getSpeed() * 0.5);
         this.plugin.addHorse(child);
-        return this.plugin.spawnHorse(child, mother.getEntity().getLocation());
+        SpawnedHorse spawnedChild =  this.plugin.spawnHorse(child, mother.getEntity().getLocation());
+        spawnedChild.extra.setCooldown(HorsePlugin.COOLDOWN_AGE, HorseAge.FOAL.duration * Util.ONE_DAY);
+        return spawnedChild;
     }
 }

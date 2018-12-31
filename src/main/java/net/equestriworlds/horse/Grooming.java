@@ -5,9 +5,9 @@ import java.util.ArrayList;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import net.equestriworlds.horse.HorseData.GroomingData;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -26,27 +26,36 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 @RequiredArgsConstructor
-final class Grooming implements Listener {
+public final class Grooming implements Listener {
     private final HorsePlugin plugin;
+    public static final String EXTRA_DATA_KEY = "grooming";
+
+    @Data
+    static final class Persistence {
+        public static final String EXTRA_KEY = "grooming";
+        long expiration;
+        int wash, clip, brush, hoof, comb, shed, hair, face, oil, sheen;
+        transient long cooldown;
+    }
 
     enum Activity {
-        WASH       (GroomingData::getWash,  GroomingData::setWash,  1, 3), // special case, see below
-        CLIP       (GroomingData::getClip,  GroomingData::setClip,  2, 1),
-        BRUSH      (GroomingData::getBrush, GroomingData::setBrush, 1, 5),
-        PICK_HOOVES(GroomingData::getHoof,  GroomingData::setHoof,  1, 4),
-        COMB       (GroomingData::getComb,  GroomingData::setComb,  1, 6),
-        SHED       (GroomingData::getShed,  GroomingData::setShed,  1, 3),
-        COMB_HAIR  (GroomingData::getHair,  GroomingData::setHair,  1, 2),
-        BRUSH_FACE (GroomingData::getFace,  GroomingData::setFace,  1, 2),
-        OIL_HOOVES (GroomingData::getOil,   GroomingData::setOil,   1, 4),
-        SHEEN      (GroomingData::getSheen, GroomingData::setSheen, 1, 3);
-        final Function<GroomingData, Integer> getter;
-        final BiConsumer<GroomingData, Integer> setter;
+        WASH       (Persistence::getWash,  Persistence::setWash,  1, 3), // special case, see below
+        CLIP       (Persistence::getClip,  Persistence::setClip,  2, 1),
+        BRUSH      (Persistence::getBrush, Persistence::setBrush, 1, 5),
+        PICK_HOOVES(Persistence::getHoof,  Persistence::setHoof,  1, 4),
+        COMB       (Persistence::getComb,  Persistence::setComb,  1, 6),
+        SHED       (Persistence::getShed,  Persistence::setShed,  1, 3),
+        COMB_HAIR  (Persistence::getHair,  Persistence::setHair,  1, 2),
+        BRUSH_FACE (Persistence::getFace,  Persistence::setFace,  1, 2),
+        OIL_HOOVES (Persistence::getOil,   Persistence::setOil,   1, 4),
+        SHEEN      (Persistence::getSheen, Persistence::setSheen, 1, 3);
+        final Function<Persistence, Integer> getter;
+        final BiConsumer<Persistence, Integer> setter;
         final int appearance;
         final int maximum;
 
-        Activity(Function<GroomingData, Integer> getter,
-                 BiConsumer<GroomingData, Integer> setter,
+        Activity(Function<Persistence, Integer> getter,
+                 BiConsumer<Persistence, Integer> setter,
                  int appearance, int maximum) {
             this.getter = getter;
             this.setter = setter;
@@ -119,11 +128,11 @@ final class Grooming implements Listener {
         Optional<Object> opt = this.plugin.getDirtyNBT().accessItemNBT(result, true);
         this.plugin.getDirtyNBT().setNBT(opt, HorsePlugin.ITEM_MARKER, tool.key);
         this.plugin.getDirtyNBT().setNBT(opt, HorsePlugin.ITEM_USES, tool.uses);
-        updateAppearance(result, tool, tool.uses);
+        updateTool(result, tool, tool.uses);
         return result;
     }
 
-    void updateAppearance(ItemStack item, Tool tool, int uses) {
+    void updateTool(ItemStack item, Tool tool, int uses) {
         ItemMeta meta = item.getItemMeta();
         meta.setDisplayName(ChatColor.AQUA + tool.humanName);
         ArrayList<String> lore = new ArrayList<>();
@@ -159,47 +168,49 @@ final class Grooming implements Listener {
         event.setCancelled(true);
         if (!player.isSneaking()) player.teleport(player.getLocation());
         // Activity
-        GroomingData groomingData = spawned.data.getGrooming();
-        if (groomingData == null) {
-            groomingData = new GroomingData();
-            groomingData.expiration = Instant.now().getEpochSecond() + 60L * 60L * 24L; // Stay for 12 hours.
-            spawned.data.setGrooming(groomingData);
+        Persistence persistence = spawned.extra.getGrooming();
+        if (persistence == null) {
+            persistence = new Persistence();
+            persistence.expiration = Instant.now().getEpochSecond() + 60L * 60L * 24L; // Stay for 12 hours.
+            spawned.extra.setGrooming(persistence);
         }
         long now = System.currentTimeMillis();
-        if (now < groomingData.cooldown) return;
+        if (now < persistence.cooldown) return;
         boolean success;
         final int value;
         if (tool.activity == Activity.WASH) {
-            if (groomingData.wash >= 3) {
+            if (persistence.wash >= 3) {
                 player.sendActionBar(ChatColor.RED + spawned.data.getName() + ChatColor.RESET + ChatColor.RED + " is already clean.");
                 return;
             }
-            value = groomingData.wash;
+            value = persistence.wash;
             if (tool == Tool.WATER_BUCKET && value == 0) {
                 item.setType(Material.BUCKET);
-                groomingData.wash = 1;
+                persistence.wash = 1;
                 success = true;
             } else if (tool == Tool.SHAMPOO && value == 1) {
-                groomingData.wash = 2;
+                persistence.wash = 2;
                 success = true;
             } else if (tool == Tool.SWEAT_SCRAPER && value == 2) {
-                groomingData.wash = 3;
-                groomingData.appearance += Activity.WASH.appearance;
+                persistence.wash = 3;
+                spawned.data.setAppearance(spawned.data.getAppearance() + Activity.WASH.appearance);
+                this.plugin.saveHorse(spawned.data);
                 success = true;
             } else {
                 success = false;
             }
         } else {
-            if (groomingData.wash < 3) {
+            if (persistence.wash < 3) {
                 player.sendActionBar(ChatColor.RED + "Clean " + spawned.data.getName() + ChatColor.RESET + ChatColor.RED + " first.");
                 return;
             }
-            value = tool.activity.getter.apply(groomingData);
+            value = tool.activity.getter.apply(persistence);
             if (value >= tool.activity.maximum) {
                 success = false;
             } else {
-                tool.activity.setter.accept(groomingData, value + 1);
-                groomingData.appearance += tool.activity.appearance;
+                tool.activity.setter.accept(persistence, value + 1);
+                spawned.data.setAppearance(spawned.data.getAppearance() + tool.activity.appearance);
+                this.plugin.saveHorse(spawned.data);
                 success = true;
             }
         }
@@ -212,11 +223,11 @@ final class Grooming implements Listener {
                     item.setAmount(0);
                 } else {
                     setUses(item, uses);
-                    updateAppearance(item, tool, uses);
+                    updateTool(item, tool, uses);
                 }
             }
-            groomingData.cooldown = now + 500L;
-            this.plugin.getDatabase().updateHorse(spawned.data);
+            persistence.cooldown = now + 500L;
+            this.plugin.saveExtraData(spawned.data, EXTRA_DATA_KEY, persistence);
             String title = successNotification(player, spawned, tool, value);
             player.sendMessage(title);
             player.sendActionBar(title);

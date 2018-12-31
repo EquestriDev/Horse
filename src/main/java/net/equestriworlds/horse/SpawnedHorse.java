@@ -10,13 +10,21 @@ import org.bukkit.entity.AbstractHorse;
 /**
  * Provide runtime data on spawned horses.
  */
-@Getter @Setter @RequiredArgsConstructor
-final class SpawnedHorse {
+@Getter @Setter
+public final class SpawnedHorse {
     public final HorseData data;
+    public final HorseExtra extra;
     AbstractHorse entity;
     long ticksLived;
     UUID following;
     Crosstie crosstie;
+
+    SpawnedHorse(HorseData data) {
+        if (data == null) throw new NullPointerException("data cannot be null");
+        if (data.getId() <= 0) throw new IllegalStateException("data.id cannot be negative");
+        this.data = data;
+        this.extra = new HorseExtra(data.getId());
+    }
 
     void despawn() {
         if (entity == null) return;

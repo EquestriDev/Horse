@@ -14,7 +14,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 final class AdminCommand extends CommandBase implements TabExecutor {
-    private final List<String> commands = Arrays.asList("edit", "new", "move", "info", "deletebrand", "spawntool", "spawnfeed", "setbreedingcooldown", "setagecooldown", "navigate", "move");
+    private final List<String> commands = Arrays.asList("edit", "new", "move", "info", "deletebrand", "spawntool", "spawnfeed", "navigate", "move");
 
     AdminCommand(HorsePlugin plugin) {
         super(plugin);
@@ -145,20 +145,6 @@ final class AdminCommand extends CommandBase implements TabExecutor {
                 }
                 sender.sendMessage("Feed " + amount + "x" + ifeed.humanName + " given to " + target.getName() + ".");
             }
-            return true;
-        }
-        case "setbreedingcooldown": {
-            if (args.length != 2) return false;
-            HorseData data = horseWithId(args[0]);
-            data.setBreedingCooldown(expectInt(args[1]));
-            sender.sendMessage("Set breeding cooldown of horse#" + data.getId() + " (" + data.getStrippedName() + "/" + data.getOwnerName(this.plugin) + ") to " + data.getBreedingCooldown() + ".");
-            return true;
-        }
-        case "setagecooldown": {
-            if (args.length != 2) return false;
-            HorseData data = horseWithId(args[0]);
-            data.setAgeCooldown(expectInt(args[1]));
-            sender.sendMessage("Set age cooldown of horse#" + data.getId() + " (" + data.getStrippedName() + "/" + data.getOwnerName(this.plugin) + ") to " + data.getAgeCooldown() + ".");
             return true;
         }
         default:

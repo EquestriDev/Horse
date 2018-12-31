@@ -2,6 +2,7 @@ package net.equestriworlds.horse;
 
 import java.util.ArrayList;
 import java.util.Optional;
+import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.md_5.bungee.api.ChatColor;
@@ -24,8 +25,20 @@ import org.bukkit.inventory.meta.ItemMeta;
  * Manage horse feeding, body value, and hydration.
  */
 @RequiredArgsConstructor
-final class Feeding implements Listener {
+public final class Feeding implements Listener {
+    public static final String COOLDOWN_EAT = "eat";
+    public static final String COOLDOWN_BURN_FAT = "burn_fat";
+    public static final String COOLDOWN_DRINK = "drink";
+    public static final String COOLDOWN_DEHYDRATE = "dehydrate";
     private final HorsePlugin plugin;
+
+    @Data
+    public final class Persistence {
+        private int eatCooldown = Util.ONE_HOUR;
+        private int drinkCooldown = Util.ONE_HOUR;
+        private int burnFatCooldown = Util.ONE_HOUR;
+        private int dehydrateCooldown = Util.ONE_HOUR;
+    }
 
     @Getter
     enum Feed implements HumanReadable {
@@ -122,7 +135,7 @@ final class Feeding implements Listener {
         if (feed == null) return;
         event.setCancelled(true);
         // Check horse
-        if (spawned.data.getEatCooldown() > 0) {
+        if (spawned.extra.getCooldown(COOLDOWN_EAT) > 0) {
             player.getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.ENTITY_HORSE_ANGRY, SoundCategory.NEUTRAL, 0.5f, 1.0f);
             return;
         }
@@ -132,7 +145,7 @@ final class Feeding implements Listener {
         // Eat
         if (!player.isSneaking()) player.teleport(player.getLocation());
         spawned.data.setBody(spawned.data.getBody() + feed.value);
-        spawned.data.setEatCooldown(Util.ONE_HOUR);
+        spawned.extra.setCooldown(COOLDOWN_EAT, Util.ONE_HOUR);
         item.setAmount(item.getAmount() - 1);
         HorseEffects.feed(this.plugin, player, spawned, feed);
     }
@@ -175,13 +188,13 @@ final class Feeding implements Listener {
 
     // Requires presence
     void passSecond(SpawnedHorse spawned, long now) {
-        if (spawned.data.getEatCooldown() == 0) {
+        if (spawned.extra.getCooldown(COOLDOWN_EAT) == 0) {
             // Grazing
             switch (spawned.data.getAge()) {
             case FOAL: { // Foals cannot be fed or graze but suckle their mother.
                 if (!isMotherNearby(spawned)) break;
                 // Suckle 0.1 per 4 hours, adding up to 0.6 per day.
-                spawned.data.setEatCooldown(Util.ONE_HOUR * 4);
+                spawned.extra.setCooldown(COOLDOWN_EAT, Util.ONE_HOUR * 4);
                 spawned.data.setBody(spawned.data.getBody() + 0.6);
                 // Audiovisual feedback
                 HorseEffects.suckleEffect(this.plugin, spawned);
@@ -194,7 +207,7 @@ final class Feeding implements Listener {
                     Block grazeBlock = findGrass(spawned.getEntity());
                     if (grazeBlock != null) {
                         spawned.data.setBody(spawned.data.getBody() + 0.07);
-                        spawned.data.setEatCooldown(3600);
+                        spawned.extra.setCooldown(COOLDOWN_EAT, Util.ONE_HOUR);
                         grazeBlock.setType(Material.DIRT);
                         HorseEffects.grazeEffect(this.plugin, grazeBlock);
                     }
@@ -203,13 +216,13 @@ final class Feeding implements Listener {
             }
         }
         // Burn fat = lose body value.
-        if (spawned.data.getBurnFatCooldown() == 0) {
+        if (spawned.extra.getCooldown(COOLDOWN_BURN_FAT) == 0) {
             switch (spawned.data.getAge()) {
             case FOAL:
             case YEARLING:
                 // 0.1 * 6 = 0.6 (every 4 hours);
                 spawned.data.setBody(spawned.data.getBody() - 0.1);
-                spawned.data.setBurnFatCooldown(Util.ONE_HOUR * 4);
+                spawned.extra.setCooldown(COOLDOWN_BURN_FAT, Util.ONE_HOUR * 4);
                 break;
             default:
                 switch (spawned.data.getBreedingStage()) {
@@ -217,29 +230,29 @@ final class Feeding implements Listener {
                 case NURTURE:
                     // 0.15 * 6 = 0.9 (every 4 hours)
                     spawned.data.setBody(spawned.data.getBody() - 0.15);
-                    spawned.data.setBurnFatCooldown(Util.ONE_HOUR * 4);
+                    spawned.extra.setCooldown(COOLDOWN_BURN_FAT, Util.ONE_HOUR * 4);
                     break;
                 default:
                     // 0.1 * 8 = 0.8 (every 3 hours)
                     spawned.data.setBody(spawned.data.getBody() - 0.1);
-                    spawned.data.setBurnFatCooldown(Util.ONE_HOUR * 3);
+                    spawned.extra.setCooldown(COOLDOWN_BURN_FAT, Util.ONE_HOUR * 3);
                 }
             }
-            this.plugin.getDatabase().updateHorse(spawned.data);
+            this.plugin.saveHorse(spawned.data);
         }
         // Hydration
-        if (spawned.data.getDrinkCooldown() == 0) {
+        if (spawned.extra.getCooldown(COOLDOWN_DRINK) == 0) {
             if (spawned.data.getHydration() >= HydrationLevel.MAX_VALUE) {
                 // If we're already fully hydrated, wait another our.
-                spawned.data.setDrinkCooldown(Util.ONE_HOUR);
+                spawned.extra.setCooldown(COOLDOWN_DRINK, Util.ONE_HOUR);
             } else if (!spawned.canFreeroam()) {
                 // We can only drink if we're free.
-                spawned.data.setDrinkCooldown(Util.ONE_MINUTE);
+                spawned.extra.setCooldown(COOLDOWN_DRINK, Util.ONE_MINUTE);
             } else {
                 // We are thirsty and can move freely.  Try to drink.
                 Block waterBlock = findWater(spawned.getEntity());
                 if (waterBlock == null) {
-                    spawned.data.setDrinkCooldown(Util.ONE_MINUTE);
+                    spawned.extra.setCooldown(COOLDOWN_DRINK, Util.ONE_MINUTE);
                 } else {
                     int fill = (int)waterBlock.getData();
                     waterBlock.setData((byte)(fill - 1));
@@ -247,23 +260,23 @@ final class Feeding implements Listener {
                     hydration = Math.min(HydrationLevel.MAX_VALUE, hydration + 1.0);
                     spawned.data.setHydration(hydration);
                     if (hydration < HydrationLevel.MAX_VALUE) {
-                        spawned.data.setDrinkCooldown(Util.ONE_HOUR);
+                        spawned.extra.setCooldown(COOLDOWN_DRINK, Util.ONE_HOUR);
                     } else {
                         // We are fully restocked.  Reset the
                         // dehydration cooldown now.
-                        spawned.data.setDrinkCooldown(Util.ONE_HOUR);
-                        spawned.data.setDehydrateCooldown(Util.ONE_HOUR * 24);
+                        spawned.extra.setCooldown(COOLDOWN_DRINK, Util.ONE_HOUR);
+                        spawned.extra.setCooldown(COOLDOWN_DEHYDRATE, Util.ONE_HOUR * 24);
                     }
                     HorseEffects.drinkEffect(this.plugin, spawned, waterBlock);
                 }
             }
-            this.plugin.getDatabase().updateHorse(spawned.data);
+            this.plugin.saveHorse(spawned.data);
         }
-        if (spawned.data.getDehydrateCooldown() == 0) {
+        if (spawned.extra.getCooldown(COOLDOWN_DEHYDRATE) == 0) {
             double hydration = spawned.data.getHydration();
             spawned.data.setHydration(Math.max(0.0, hydration - 0.5));
-            spawned.data.setDehydrateCooldown(Util.ONE_DAY);
-            this.plugin.getDatabase().updateHorse(spawned.data);
+            spawned.extra.setCooldown(COOLDOWN_DEHYDRATE, Util.ONE_DAY);
+            this.plugin.saveHorse(spawned.data);
         }
     }
 

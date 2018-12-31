@@ -1,6 +1,8 @@
 package net.equestriworlds.horse;
 
 import java.util.Arrays;
+import java.util.List;
+import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -29,6 +31,13 @@ final class Crosstie {
         private final int x, y, z;
     }
 
+    @Value
+    static final class Persistence {
+        public static final String EXTRA_KEY = "crosstie";
+        public final List<Integer> hitchA;
+        public final List<Integer> hitchB;
+    }
+
     void remove() {
         if (!valid) return;
         this.valid = false;
@@ -50,10 +59,10 @@ final class Crosstie {
         return true;
     }
 
-    HorseData.CrosstieData serialize() {
+    Persistence serialize() {
         Location ha = this.hitchA.getLocation();
         Location hb = this.hitchB.getLocation();
-        return new HorseData.CrosstieData(Arrays.asList(ha.getBlockX(), ha.getBlockY(), ha.getBlockZ()),
-                                          Arrays.asList(hb.getBlockX(), hb.getBlockY(), hb.getBlockZ()));
+        return new Persistence(Arrays.asList(ha.getBlockX(), ha.getBlockY(), ha.getBlockZ()),
+                               Arrays.asList(hb.getBlockX(), hb.getBlockY(), hb.getBlockZ()));
     }
 }

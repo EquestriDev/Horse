@@ -28,7 +28,13 @@ import org.bukkit.inventory.ItemStack;
 /**
  * HorseData are completely (de)serializable via Gson and will be
  * stored in the `horses.db` as such.
- */
+ *
+ * Data should only be stored in here if they need to be accessible at
+ * all times, if the horse is loaded or not.
+ * Runtime-only data should be held by SpawnedHorse.
+ * Persistent runtime data belong in HorseExtra, which is held by
+ * SpawnedHorse.
+*/
 @Data
 final class HorseData {
     private int id = -1;
@@ -43,32 +49,24 @@ final class HorseData {
     private HorseGender gender;
     private long born; // Unix Time
     private HorseAge age;
-    private int ageCooldown;
     private HorseBreed breed;
     // Minecraft Properties
     private HorseColor color;
     private HorseMarkings markings;
     private double jump, speed;
+    // Grooming
+    private int appearance = 0;
     // Feed
     private double body = 4.0; // See BodyConditionScale
     private double hydration = 5.0;
-    private int eatCooldown = Util.ONE_HOUR;
-    private int drinkCooldown = Util.ONE_HOUR;
-    private int burnFatCooldown = Util.ONE_HOUR;
-    private int dehydrateCooldown = Util.ONE_HOUR;
     // Breeding
-    BreedingStage breedingStage = BreedingStage.READY;
-    int breedingCooldown = 0;
+    private BreedingStage breedingStage = BreedingStage.READY;
     // Access
     private HashSet<UUID> trusted = new HashSet<>();
     // Optionals
-    private Pregnancy pregnancy;
     private String armor, saddle;
-    private HorseLocation location;
-    private CrosstieData crosstie;
     private HorseBrand brand; // See HorseBrand
-    private GroomingData grooming;
-    private Health health;
+    private HorseLocation location;
 
     @Value
     static final class HorseLocation {
@@ -77,14 +75,17 @@ final class HorseData {
         public final float pitch, yaw;
         public final int cx, cz;
         public final long chunkIndex;
+
         World bukkitWorld() {
             return Bukkit.getWorld(this.world);
         }
+
         Location bukkitLocation() {
             World bworld = Bukkit.getWorld(this.world);
             if (bworld == null) return null;
             return new Location(bworld, this.x, this.y, this.z, this.yaw, this.pitch);
         }
+
         HorseLocation(Location bukkitLocation) {
             this.world = bukkitLocation.getWorld().getName();
             this.x = Util.roundDouble(bukkitLocation.getX(), 2);
@@ -96,40 +97,6 @@ final class HorseData {
             this.cz = bukkitLocation.getBlockZ() >> 4;
             this.chunkIndex = ((long)cz << 32) | (long)cx;
         }
-    }
-
-    @Value
-    static final class CrosstieData {
-        public final List<Integer> hitchA;
-        public final List<Integer> hitchB;
-    }
-
-    @Data
-    static final class GroomingData {
-        long expiration;
-        int appearance;
-        int wash, clip, brush, hoof, comb, shed, hair, face, oil, sheen;
-        transient long cooldown;
-    }
-
-    @Data
-    static final class Health {
-        boolean immortal;
-        boolean vaccinated;
-        double temperature, pulse, eyes, hydration, body, due;
-    }
-
-    @Data
-    static final class Pregnancy {
-        enum Flag {
-            OVERWEIGHT,
-            UNDERWEIGHT,
-            PREMATURE,
-            MISCARRIAGE;
-        }
-        long conceived;
-        int partnerId = -1;
-        EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
     }
 
     // --- Util
@@ -161,8 +128,9 @@ final class HorseData {
             if (this.color != null) horseEntity.setColor(this.color.bukkitColor);
             if (this.markings != null) horseEntity.setStyle(this.markings.bukkitStyle);
         }
+        // TODO: Set jump and speed some place where we know all the details.
         entity.setJumpStrength(this.jump);
-        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.crosstie == null ? this.speed : 0.0);
+        entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(this.speed);
         if (this.age == HorseAge.FOAL) {
             entity.setAge(Integer.MIN_VALUE);
         } else if (this.breedingStage == BreedingStage.READY) {
@@ -294,18 +262,6 @@ final class HorseData {
         return canAccess(player.getUniqueId());
     }
 
-    // --- Timing
-
-    void passSecond(long now) {
-        if (this.ageCooldown > 0) this.ageCooldown -= 1;
-        if (this.eatCooldown > 0) this.eatCooldown -= 1;
-        if (this.drinkCooldown > 0) this.drinkCooldown -= 1;
-        if (this.dehydrateCooldown > 0) this.dehydrateCooldown -= 1;
-        if (this.burnFatCooldown > 0) this.burnFatCooldown -= 1;
-        if (this.breedingCooldown > 0) this.breedingCooldown -= 1;
-        this.lastSeen = now;
-    }
-
     // --- Body
 
     BodyConditionScale getBodyCondition() {
@@ -314,22 +270,6 @@ final class HorseData {
 
     void setBodyCondition(BodyConditionScale scale) {
         this.body = (double)scale.score;
-    }
-
-    boolean isHungry() {
-        return eatCooldown == 0;
-    }
-
-    void setHungry(boolean hungry) {
-        this.eatCooldown = hungry ? 0 : 3600;
-    }
-
-    boolean isThirsty() {
-        return drinkCooldown == 0;
-    }
-
-    void setThirsty(boolean thirsty) {
-        this.drinkCooldown = thirsty ? 0 : 3600;
     }
 
     void setBody(double val) {

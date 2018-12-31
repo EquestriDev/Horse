@@ -49,10 +49,7 @@ final class EditCommand extends CommandBase {
     private final EditField presets = new EditField("presets", "Presets", null, null, null);
     private final EditField<BodyConditionScale> body = new EditField<>("body", "Body", HorseData::getBodyCondition, HorseData::setBodyCondition, BodyConditionScale::valueOf);
     private final EditField<HydrationLevel> hydration = new EditField<>("hydration", "Hydration", HorseData::getHydrationLevel, HorseData::setHydrationLevel, HydrationLevel::valueOf);
-    private final EditField grooming = new EditField<Double>("grooming", "Grooming", null, null, null);
-    private final EditField<Boolean> hungry = new EditField<>("hungry", "Hungry", HorseData::isHungry, HorseData::setHungry, Boolean::valueOf);
-    private final EditField<Boolean> thirsty = new EditField<>("thirsty", "Thirsty", HorseData::isThirsty, HorseData::setThirsty, Boolean::valueOf);
-    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.body, this.hydration, this.jump, this.speed, this.presets, this.grooming, this.hungry, this.thirsty);
+    private final List<EditField> editFields = Arrays.asList(this.name, this.gender, this.age, this.breed, this.color, this.markings, this.brand, this.body, this.hydration, this.jump, this.speed, this.presets);
     private final List<ChatColor> colorful = Arrays.asList(ChatColor.AQUA, ChatColor.BLUE, ChatColor.GOLD, ChatColor.GREEN, ChatColor.LIGHT_PURPLE, ChatColor.RED, ChatColor.YELLOW);
     private int colorfulIndex;
     private final List<String> dice = Arrays.asList("\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685");
@@ -103,7 +100,7 @@ final class EditCommand extends CommandBase {
         if (args.length == 2 && args[0].equals("randomize")) {
             data.randomize(this.plugin, args[1]);
             if (data.getId() >= 0) {
-                this.plugin.getDatabase().updateHorse(data);
+                this.plugin.saveHorse(data);
                 this.plugin.updateHorseEntity(data);
             }
             showEditingMenu(player, data);
@@ -112,16 +109,7 @@ final class EditCommand extends CommandBase {
         if (args.length == 1 && args[0].equals("removebrand")) {
             data.setBrand(null);
             if (data.getId() >= 0) {
-                this.plugin.getDatabase().updateHorse(data);
-                this.plugin.updateHorseEntity(data);
-            }
-            showEditingMenu(player, data);
-            return true;
-        }
-        if (args.length == 1 && args[0].equals("resetgrooming")) {
-            data.setGrooming(null);
-            if (data.getId() >= 0) {
-                this.plugin.getDatabase().updateHorse(data);
+                this.plugin.saveHorse(data);
                 this.plugin.updateHorseEntity(data);
             }
             showEditingMenu(player, data);
@@ -145,7 +133,7 @@ final class EditCommand extends CommandBase {
                 throw new CommandException("Invalid preset: " + args[1]);
             }
             if (data.getId() >= 0) {
-                this.plugin.getDatabase().updateHorse(data);
+                this.plugin.saveHorse(data);
                 this.plugin.updateHorseEntity(data);
             }
             showEditingMenu(player, data);
@@ -229,9 +217,6 @@ final class EditCommand extends CommandBase {
             if (data.getMarkings() != null && !databreed.markings.contains(data.getMarkings())) data.randomize(this.plugin, "markings");
             if (data.getMarkings() == null && !databreed.markings.isEmpty()) data.randomize(this.plugin, "markings");
         }
-        if (field == this.age) {
-            if (data.getAge() != HorseAge.ADULT) data.setAgeCooldown(data.getAge().duration * Util.ONE_DAY);
-        }
         if (data.getId() >= 0) this.plugin.updateHorseEntity(data);
         showEditingMenu(player, data);
         return true;
@@ -266,18 +251,6 @@ final class EditCommand extends CommandBase {
                 } else {
                     printLine = false;
                 }
-            } else if (field == this.grooming) {
-                HorseData.GroomingData groomingData = data.getGrooming();
-                if (groomingData != null) {
-                    printLine = true;
-                    cb.append("Grooming").color(ChatColor.GOLD).bold(true).italic(true).append(" ").reset();
-                    cb.append("" + groomingData.appearance).append(" ").reset();
-                    cb.append("[Reset]").color(ChatColor.RED)
-                        .event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit resetgrooming"))
-                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.RED + "Reset the grooming status of this horse.")));
-                } else {
-                    printLine = false;
-                }
             } else if (field == this.presets) {
                 printLine = presetsEditField(data, field, cb);
             } else {
@@ -304,13 +277,11 @@ final class EditCommand extends CommandBase {
         if (o == null) return false;
         String displayValue = displayValue(data, field, o);
         cb.append(field.name).color(ChatColor.GOLD).bold(true).italic(true);
-        if (field != this.hungry && field != this.thirsty) {
-            cb.append(" ").reset();
-            // Randomize
-            cb.append("[" + this.dice.get(ThreadLocalRandom.current().nextInt(this.dice.size())) + "]").color(ChatColor.GREEN); // dice
-            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit randomize " + field.key));
-            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "Randomize " + field.name)));
-        }
+        cb.append(" ").reset();
+        // Randomize
+        cb.append("[" + this.dice.get(ThreadLocalRandom.current().nextInt(this.dice.size())) + "]").color(ChatColor.GREEN); // dice
+        cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/ha edit randomize " + field.key));
+        cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(ChatColor.GREEN + "Randomize " + field.name)));
         cb.append(" ").reset();
         boolean adjustButtons = false;
         boolean slideButtons = false;
@@ -447,8 +418,6 @@ final class EditCommand extends CommandBase {
         if (field == this.hydration) return Arrays.asList(HydrationLevel.values());
         if (field == this.color)    return new ArrayList(data.getBreed().colors);
         if (field == this.markings) return new ArrayList(data.getBreed().markings);
-        if (field == this.hungry)   return Arrays.asList(true, false);
-        if (field == this.thirsty)  return Arrays.asList(true, false);
         return null;
     }
 

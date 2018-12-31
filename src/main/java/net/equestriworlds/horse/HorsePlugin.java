@@ -51,6 +51,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     public static final String SCOREBOARD_MARKER = "equestriworlds.horse";
     public static final String ITEM_MARKER = "equestriworlds.item";
     public static final String ITEM_USES = "equestriworlds.uses";
+    public static final String COOLDOWN_AGE = "age";
     // --- Horse Data
     private HorseDatabase database;
     private List<HorseData> horses;
@@ -124,6 +125,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     @Override
     public void onDisable() {
         for (SpawnedHorse spawned: this.spawnedHorses) {
+            spawned.extra.saveNow(this);
             if (spawned.isPresent()) {
                 AbstractHorse entity = spawned.getEntity();
                 spawned.data.storeLocation(entity.getLocation());
@@ -167,9 +169,22 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     }
 
     void addHorse(HorseData data) {
-        if (data.getId() >= 0) throw new IllegalArgumentException("Horse already exists");
         this.database.saveHorse(data);
         this.horses.add(data);
+    }
+
+    /**
+     * Update horse data in the persistent storage.  This method may
+     * defer saving to the next tick, so it may be spammed if needed.
+     */
+    void saveHorse(HorseData data) {
+        if (data.getId() < 0) throw new IllegalArgumentException("Horse data does not exist in database.");
+        this.database.updateHorse(data);
+    }
+
+    void saveExtraData(HorseData data, String key, Object value) {
+        if (data == null) throw new NullPointerException("data cannot be null");
+        this.database.saveExtraData(data.getId(), key, value == null ? null : new Gson().toJson(value));
     }
 
     // --- SpawnedHorse
@@ -184,14 +199,15 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         if (location == null) throw new NullPointerException("location cannot be null");
         AbstractHorse entity = (AbstractHorse)location.getWorld().spawn(location, (Class<? extends AbstractHorse>)data.getBreed().entityType.getEntityClass(), e -> this.prepareHorseEntity(data, e));
         data.storeLocation(location);
-        this.database.updateHorse(data);
+        saveHorse(data);
         // Update or create the SpawnedHorse
         SpawnedHorse spawned = findSpawnedHorse(data);
         if (spawned == null) {
             spawned = new SpawnedHorse(data);
+            spawned.extra.load(this.database.loadExtraData(data.getId()));
             spawned.setEntity(entity);
             this.spawnedHorses.add(spawned);
-            HorseData.CrosstieData cd = data.getCrosstie();
+            Crosstie.Persistence cd = spawned.extra.getCrosstie();
             if (cd != null
                 && cd.hitchA != null && cd.hitchA.size() == 3
                 && cd.hitchB != null && cd.hitchB.size() == 3) {
@@ -219,6 +235,7 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         SpawnedHorse spawned = findSpawnedHorse(data);
         if (spawned == null) {
             spawned = new SpawnedHorse(data);
+            spawned.extra.load(this.database.loadExtraData(data.getId()));
             this.spawnedHorses.add(spawned);
         }
         if (!spawned.isPresent()) {
@@ -230,8 +247,8 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         }
         // Update data
         spawned.data.storeLocation(location);
-        spawned.data.setCrosstie(null);
-        this.database.updateHorse(spawned.data);
+        spawned.extra.setCrosstie(null);
+        saveHorse(spawned.data);
         return spawned;
     }
 
@@ -257,8 +274,6 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         } else {
             prepareHorseEntity(data, entity);
         }
-        data.storeLocation(location);
-        this.database.updateHorse(data);
         return spawned;
     }
 
@@ -329,10 +344,15 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
     public void run() {
         // SpawnedHorse
         for (Iterator<SpawnedHorse> iter = this.spawnedHorses.iterator(); iter.hasNext();) {
-            if (!iter.next().isPresent()) iter.remove();
+            SpawnedHorse spawned = iter.next();
+            if (!spawned.isPresent()) {
+                spawned.extra.saveNow(this);
+                iter.remove();
+            }
         }
         for (SpawnedHorse spawned: new ArrayList<>(this.spawnedHorses)) {
             tickSpawnedHorse(spawned);
+            if (spawned.extra.isNeedsSaving()) spawned.extra.saveNow(this);
         }
     }
 
@@ -346,16 +366,14 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         Crosstie crosstie = spawned.getCrosstie();
         if (crosstie != null && !crosstie.check()) {
             spawned.removeCrosstie();
-            spawned.data.setCrosstie(null);
-            this.database.updateHorse(spawned.data);
+            spawned.extra.setCrosstie(null);
             spawned.getEntity().getWorld().playSound(spawned.getEntity().getEyeLocation(), Sound.BLOCK_IRON_DOOR_OPEN, SoundCategory.NEUTRAL, 1.0f, 2.0f);
         }
         // Grooming
-        HorseData.GroomingData groomingData = spawned.data.getGrooming();
+        Grooming.Persistence groomingData = spawned.extra.getGrooming();
         if (groomingData != null) {
             if (groomingData.expiration < Instant.now().getEpochSecond()) {
-                spawned.data.setGrooming(null);
-                this.database.updateHorse(spawned.data);
+                spawned.extra.setGrooming(null);
             } else if (groomingData.wash == 1 && (ticksLived % 8 == 0)) {
                 spawned.getEntity().getWorld().spawnParticle(Particle.WATER_DROP, spawned.getEntity().getEyeLocation(), 8, 0.5, 0.5, 0.5, 0.0);
             } else if (groomingData.wash == 2 && (ticksLived % 8 == 0)) {
@@ -365,15 +383,16 @@ public final class HorsePlugin extends JavaPlugin implements Runnable {
         // Eating and drinking
         if (ticksLived > 0 && (ticksLived % 20) == 0) {
             Long now = Instant.now().getEpochSecond();
-            spawned.data.passSecond(now);
+            spawned.data.setLastSeen(now);
+            spawned.extra.passSecond(now);
             this.feeding.passSecond(spawned, now);
             if (spawned.data.getBreedingStage() != BreedingStage.READY) this.breeding.passSecond(spawned, now);
-            if (spawned.data.getAge() != HorseAge.ADULT && spawned.data.getAgeCooldown() == 0) {
+            if (spawned.data.getAge() != HorseAge.ADULT && spawned.extra.getCooldown(COOLDOWN_AGE) == 0) {
                 HorseAge nx = spawned.data.getAge().next();
                 spawned.data.setAge(nx);
-                spawned.data.setAgeCooldown(nx.duration * Util.ONE_DAY);
+                spawned.extra.setCooldown(COOLDOWN_AGE, nx.duration * Util.ONE_DAY);
                 spawned.getEntity().setAge(0);
-                this.database.updateHorse(spawned.data);
+                saveHorse(spawned.data);
                 Player owner = spawned.data.getOwningPlayer();
                 if (owner != null) {
                     String txt = ChatColor.GOLD + "Your " + spawned.data.getGender().humanName.toLowerCase() + " " + spawned.data.getMaskedName() + ChatColor.GOLD + " has grown up and is now " + nx.indefiniteArticle() + " " + ChatColor.BOLD + nx.humanName + ChatColor.RESET + ChatColor.GOLD + ".";
